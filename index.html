@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="nn">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stadsnamn-quiz</title>
+<style>
+:root { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+body { margin: 0; background:#0b1220; color:#e5e7eb; }
+.wrap { max-width: none; width: min(1400px, 100vw); margin: 0 auto; padding: 14px; }
+.card { background: rgba(15,23,42,.9); border: 1px solid rgba(148,163,184,.2); border-radius: 16px; padding: 14px; }
+h1 { margin: 0 0 8px; font-size: 22px; }
+.row { display: grid; gap: 14px; grid-template-columns: 2.3fr 0.9fr; align-items: start; }
+@media (max-width: 820px){.wrap{ padding: 10px; width: 100vw; } .row{ grid-template-columns: 1fr; } .map{ aspect-ratio: 4/3; } }
+.meta { display:flex; gap:10px; flex-wrap: wrap; font-size: 13px; opacity:.92; }
+.pill { padding: 6px 10px; border-radius: 999px; background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.18); }
+
+.mapWrap { display:flex; flex-direction: column; gap:10px; }
+.map {
+position: relative;
+width: 100%;
+aspect-ratio: 16/9;
+border-radius: 16px;
+overflow: hidden;
+border: 1px solid rgba(148,163,184,.2);
+background: #0a1020;
+}
+.tiles { position:absolute; inset:0; transform-origin: 0 0; }
+.tile { position:absolute; width: 256px; height: 256px; user-select:none; -webkit-user-drag:none; }
+.mask {
+position:absolute; left:50%; top:50%;
+transform: translate(-50%,-50%);
+width: 72px; height: 72px;
+border-radius: 999px;
+background: rgba(2,6,23,.92);
+border: 1px solid rgba(2,6,23,.92);
+box-shadow: 0 10px 30px rgba(0,0,0,.35);
+pointer-events:none;
+}
+.attrib {
+position:absolute; left:10px; bottom:8px;
+font-size: 11px; opacity:.75;
+background: rgba(2,6,23,.55);
+border: 1px solid rgba(148,163,184,.18);
+padding: 4px 8px; border-radius: 999px;
+}
+
+.controls { display:flex; gap:12px; flex-wrap: wrap; font-size: 13px; align-items:center; }
+.controls label { display:flex; gap:8px; align-items:center; }
+input[type="range"] { width: 160px; }
+
+.opts { display: grid; gap: 10px; margin-top: 10px; }
+button.opt {
+width: 100%;
+text-align:left;
+padding: 10px 12px;
+border-radius: 14px;
+background: rgba(30,41,59,.75);
+border: 1px solid rgba(148,163,184,.22);
+color: #e5e7eb;
+font-size: 14px;
+cursor: pointer;
+}
+button.opt:hover { background: rgba(51,65,85,.85); }
+button.opt[disabled] { cursor: default; opacity: .85; }
+.good { background: rgba(16,185,129,.35) !important; border-color: rgba(16,185,129,.55) !important; }
+.bad { background: rgba(244,63,94,.28) !important; border-color: rgba(244,63,94,.55) !important; }
+.muted { opacity:.7; }
+
+.actions { display:flex; gap:10px; flex-wrap: wrap; margin-top: 12px; }
+.btn {
+padding: 10px 12px;
+border-radius: 12px;
+border: 1px solid rgba(148,163,184,.22);
+background: rgba(226,232,240,.92);
+color:#0b1220;
+font-weight: 700;
+cursor:pointer;
+}
+.btn2 { background: transparent; color:#e5e7eb; font-weight:600; }
+
+.note { margin-top: 8px; font-size: 12px; opacity:.7; }
+a { color:#c7d2fe; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>Stadsnamn-quiz 🇳🇴</h1>
+<div class="meta">
+<div class="pill" id="progress">Spørsmål 1</div>
+<div class="pill" id="score">Poeng 0</div>
+<div class="pill" id="fylke">Fylke: –</div>
+</div>
+</div>
+
+<div style="height:12px"></div>
+
+<div class="row">
+<div class="card mapWrap">
+<div class="map" aria-label="Kartutsnitt">
+<div class="tiles" id="tiles"></div>
+<div class="mask" id="mask"></div>
+<div class="attrib">
+Kart: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+</div>
+</div>
+
+<div class="controls">
+<label>Zoom
+<input id="zoom" type="range" min="6" max="12" step="1" value="9">
+<span id="zoomVal">9</span>
+</label>
+<label>Mask
+<input id="maskSize" type="range" min="28" max="140" step="2" value="88">
+<span id="maskVal">88px</span>
+</label>
+<button class="btn btn2" id="newTiles">Oppdater kart</button>
+</div>
+
+<div class="note">
+NB: Ekte OSM-kartfliser (treng internett). Om du ser tomme ruter: vent litt eller trykk “Oppdater kart”.
+</div>
+</div>
+
+<div class="card">
+<div style="font-weight:800; font-size:16px;">Kva heiter denne staden?</div>
+<div class="muted" style="margin-top:6px">
+Vel eitt av fire alternativ (frå same fylke eller nærområdet).
+</div>
+<div class="opts" id="opts"></div>
+
+<div class="actions">
+<button class="btn" id="restart">Start på nytt</button>
+<button class="btn btn2" id="skip">Hopp over</button>
+</div>
+
+<div class="note">
+Tips: Zoom ned for lettare, zoom opp for vanskelegare. Mask kan justerast om labels “stikk ut”.
+</div>
+</div>
+</div>
+</div>
+
+<script>
+// OSM Standard tiles
+const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+const TILE_SIZE = 256;
+
+// Små/mellomstore stader med ca-koordinatar.
+const PLACES = [
+// Finnmark
+{ name:"Kirkenes", fylke:"Finnmark", lat:69.7271, lon:30.0458 },
+{ name:"Lakselv", fylke:"Finnmark", lat:70.0516, lon:24.9731 },
+{ name:"Vadsø", fylke:"Finnmark", lat:70.0735, lon:29.7494 },
+{ name:"Vardø", fylke:"Finnmark", lat:70.3705, lon:31.1107 },
+{ name:"Honningsvåg",fylke:"Finnmark", lat:70.9821, lon:25.9704 },
+{ name:"Karasjok", fylke:"Finnmark", lat:69.4719, lon:25.5110 },
+{ name:"Kjøllefjord", fylke:"Finnmark", lat:70.9452, lon:27.3507 },
+{ name:"Mehamn", fylke:"Finnmark", lat:71.0340, lon:27.8513 },
+{ name:"Båtsfjord", fylke:"Finnmark", lat:70.6340, lon:29.7174 },
+{ name:"Tana bru", fylke:"Finnmark", lat:70.1994, lon:28.1903 },
+
+// Troms
+{ name:"Finnsnes", fylke:"Troms", lat:69.2307, lon:18.0084 },
+{ name:"Setermoen", fylke:"Troms", lat:68.8561, lon:18.3481 },
+{ name:"Bardufoss", fylke:"Troms", lat:69.0558, lon:18.5365 },
+{ name:"Sjøvegan", fylke:"Troms", lat:68.8756, lon:17.8523 },
+{ name:"Skjervøy", fylke:"Troms", lat:70.0286, lon:20.9713 },
+{ name:"Hansnes", fylke:"Troms", lat:69.9686, lon:19.6230 },
+{ name:"Storslett", fylke:"Troms", lat:69.7707, lon:21.0261 },
+{ name:"Lyngseidet", fylke:"Troms", lat:69.5767, lon:20.2185 },
+{ name:"Botnhamn", fylke:"Troms", lat:69.5142, lon:17.8991 },
+
+// Nordland
+{ name:"Fauske", fylke:"Nordland", lat:67.2591, lon:15.3917 },
+{ name:"Rognan", fylke:"Nordland", lat:67.1008, lon:15.3906 },
+{ name:"Leknes", fylke:"Nordland", lat:68.1475, lon:13.6119 },
+{ name:"Svolvær", fylke:"Nordland", lat:68.2341, lon:14.5683 },
+{ name:"Andenes", fylke:"Nordland", lat:69.3143, lon:16.1194 },
+{ name:"Ballangen", fylke:"Nordland", lat:68.3426, lon:16.8316 },
+{ name:"Drag", fylke:"Nordland", lat:68.0812, lon:15.6027 },
+{ name:"Reine", fylke:"Nordland", lat:67.9327, lon:13.0892 },
+{ name:"Inndyr", fylke:"Nordland", lat:67.0335, lon:14.0286 },
+
+// Trøndelag
+{ name:"Røros", fylke:"Trøndelag", lat:62.5747, lon:11.3841 },
+{ name:"Oppdal", fylke:"Trøndelag", lat:62.5941, lon:9.6910 },
+{ name:"Støren", fylke:"Trøndelag", lat:63.0484, lon:10.2811 },
+{ name:"Brekstad", fylke:"Trøndelag", lat:63.7136, lon:9.6636 },
+{ name:"Å (Inderøy)", fylke:"Trøndelag", lat:63.9610, lon:11.3055 },
+{ name:"Rissa", fylke:"Trøndelag", lat:63.5834, lon:10.0063 },
+{ name:"Lensvik", fylke:"Trøndelag", lat:63.5179, lon:9.8153 },
+{ name:"Børsa", fylke:"Trøndelag", lat:63.1716, lon:10.2407 },
+
+// Vestland
+{ name:"Odda", fylke:"Vestland", lat:60.0697, lon:6.5457 },
+{ name:"Norheimsund", fylke:"Vestland", lat:60.3703, lon:6.1452 },
+{ name:"Måløy", fylke:"Vestland", lat:61.9354, lon:5.1136 },
+{ name:"Rosendal", fylke:"Vestland", lat:59.9867, lon:6.0115 },
+{ name:"Aurland", fylke:"Vestland", lat:60.9056, lon:7.1876 },
+{ name:"Flåm", fylke:"Vestland", lat:60.8623, lon:7.1148 },
+{ name:"Vikøyri", fylke:"Vestland", lat:61.0873, lon:6.5787 },
+{ name:"Fitjar", fylke:"Vestland", lat:59.9190, lon:5.3171 },
+
+// Rogaland
+{ name:"Sauda", fylke:"Rogaland", lat:59.6509, lon:6.3541 },
+{ name:"Jørpeland", fylke:"Rogaland", lat:58.9861, lon:6.0406 },
+{ name:"Nærbø", fylke:"Rogaland", lat:58.6642, lon:5.6377 },
+{ name:"Skudeneshavn",fylke:"Rogaland",lat:59.1482, lon:5.2638 },
+{ name:"Vikeså", fylke:"Rogaland", lat:58.6351, lon:6.0935 },
+{ name:"Ålgård", fylke:"Rogaland", lat:58.7645, lon:5.8537 },
+{ name:"Varhaug", fylke:"Rogaland", lat:58.6176, lon:5.6443 },
+{ name:"Sirevåg", fylke:"Rogaland", lat:58.5022, lon:5.5735 },
+
+// Agder
+{ name:"Flekkefjord",fylke:"Agder", lat:58.2973, lon:6.6609 },
+{ name:"Farsund", fylke:"Agder", lat:58.0959, lon:6.8031 },
+{ name:"Lyngdal", fylke:"Agder", lat:58.1379, lon:7.0766 },
+{ name:"Evje", fylke:"Agder", lat:58.5848, lon:7.7997 },
+{ name:"Birkeland", fylke:"Agder", lat:58.3335, lon:8.2334 },
+{ name:"Byglandsfjord", fylke:"Agder", lat:58.9218, lon:7.7684 },
+{ name:"Tvedestrand", fylke:"Agder", lat:58.6234, lon:8.9274 },
+{ name:"Hægeland", fylke:"Agder", lat:58.2364, lon:7.9334 },
+
+// Innlandet
+{ name:"Otta", fylke:"Innlandet",lat:61.7716, lon:9.5376 },
+{ name:"Fagernes", fylke:"Innlandet",lat:60.9854, lon:9.2320 },
+{ name:"Dokka", fylke:"Innlandet",lat:60.8361, lon:10.0683 },
+{ name:"Trysil", fylke:"Innlandet",lat:61.3137, lon:12.2647 },
+{ name:"Vågåmo", fylke:"Innlandet", lat:61.8755, lon:9.0946 },
+{ name:"Ringebu", fylke:"Innlandet", lat:61.5293, lon:10.1354 },
+{ name:"Brandbu", fylke:"Innlandet", lat:60.4194, lon:10.6475 },
+{ name:"Tolga", fylke:"Innlandet", lat:62.4071, lon:11.0204 },
+
+// Viken
+{ name:"Årnes", fylke:"Viken", lat:60.1230, lon:11.4636 },
+{ name:"Mysen", fylke:"Viken", lat:59.5530, lon:11.3276 },
+{ name:"Rakkestad", fylke:"Viken", lat:59.4257, lon:11.3392 },
+{ name:"Vikersund", fylke:"Viken", lat:59.9648, lon:9.9915 },
+{ name:"Røyken", fylke:"Viken", lat:59.7402, lon:10.4116 },
+{ name:"Lierbyen", fylke:"Viken", lat:59.7856, lon:10.2456 },
+{ name:"Nesbyen", fylke:"Viken", lat:60.5695, lon:9.1020 },
+{ name:"Aurskog", fylke:"Viken", lat:59.9269, lon:11.5694 },
+];
+
+function groupBy(arr, key){
+return arr.reduce((acc,x)=>((acc[x[key]] ??= []).push(x), acc), {});
+}
+function shuffle(a){
+a = a.slice();
+for (let i=a.length-1;i>0;i--){
+const j = Math.floor(Math.random()*(i+1));
+[a[i],a[j]]=[a[j],a[i]];
+}
+return a;
+}
+function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+// ---------- Pixel-presis Web Mercator ----------
+function latLonToWorldPx(lat, lon, z){
+const n = Math.pow(2, z);
+const x = (lon + 180) / 360 * n * TILE_SIZE;
+
+const latClamped = clamp(lat, -85.05112878, 85.05112878);
+const rad = latClamped * Math.PI / 180;
+const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / 2 * n * TILE_SIZE;
+
+return { x, y, n };
+}
+
+function renderTilesPrecise(lat, lon, z){
+const tilesEl = document.getElementById("tiles");
+tilesEl.innerHTML = "";
+
+const mapEl = tilesEl.parentElement;
+const rect = mapEl.getBoundingClientRect();
+
+const cols = 5, rows = 4;
+const totalW = cols * TILE_SIZE, totalH = rows * TILE_SIZE;
+const scale = Math.max(rect.width / totalW, rect.height / totalH);
+
+tilesEl.style.width = totalW + "px";
+tilesEl.style.height = totalH + "px";
+
+const wp = latLonToWorldPx(lat, lon, z);
+const nTiles = wp.n;
+
+const cx = Math.floor(wp.x / TILE_SIZE);
+const cy = Math.floor(wp.y / TILE_SIZE);
+
+let startX = cx - Math.floor(cols / 2);
+let startY = clamp(cy - Math.floor(rows / 2), 0, nTiles - rows);
+
+const startWorldX = startX * TILE_SIZE;
+const startWorldY = startY * TILE_SIZE;
+
+const offsetX = wp.x - startWorldX;
+const offsetY = wp.y - startWorldY;
+
+const targetX = (rect.width / scale) / 2;
+const targetY = (rect.height / scale) / 2;
+
+const tx = targetX - offsetX;
+const ty = targetY - offsetY;
+
+tilesEl.style.transform = `scale(${scale}) translate(${tx}px, ${ty}px)`;
+
+const maxY = nTiles - 1;
+for (let r = 0; r < rows; r++){
+for (let c = 0; c < cols; c++){
+const rawX = startX + c;
+const x = ((rawX % nTiles) + nTiles) % nTiles;
+const y = clamp(startY + r, 0, maxY);
+
+const img = document.createElement("img");
+img.className = "tile";
+img.alt = "";
+img.loading = "eager";
+img.decoding = "async";
+img.src = TILE_URL(z, x, y);
+img.style.left = (c * TILE_SIZE) + "px";
+img.style.top = (r * TILE_SIZE) + "px";
+tilesEl.appendChild(img);
+}
+}
+}
+
+// ---------- Nærområde (avstand) ----------
+function haversineKm(a, b){
+const R = 6371;
+const toRad = d => d * Math.PI / 180;
+const dLat = toRad(b.lat - a.lat);
+const dLon = toRad(b.lon - a.lon);
+const lat1 = toRad(a.lat);
+const lat2 = toRad(b.lat);
+
+const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+return R * c;
+}
+
+// ---------- Quiz ----------
+const byFylke = groupBy(PLACES, "fylke");
+let questions = [];
+let idx = 0;
+let score = 0;
+let locked = false;
+
+// Vel 3 distraktorar: prøv same fylke først, fyll på med dei nærmaste ellers
+function buildOptionsForPlace(p){
+const opts = [p.name];
+const used = new Set(opts);
+
+// 1) Først: same fylke
+const same = shuffle((byFylke[p.fylke] || []).filter(x => x.name !== p.name));
+for (const cand of same){
+if (opts.length >= 4) break;
+if (!used.has(cand.name)){
+opts.push(cand.name);
+used.add(cand.name);
+}
+}
+
+// 2) Om vi manglar: fyll på med næraste (uansett fylke)
+if (opts.length < 4){
+const sortedByNear = PLACES
+.filter(x => x.name !== p.name && !used.has(x.name))
+.map(x => ({ x, d: haversineKm(p, x) }))
+.sort((a,b) => a.d - b.d)
+.map(o => o.x);
+
+for (const cand of sortedByNear){
+if (opts.length >= 4) break;
+opts.push(cand.name);
+used.add(cand.name);
+}
+}
+
+return shuffle(opts);
+}
+
+function buildQuestions(){
+const base = shuffle(PLACES);
+return base.map(p => ({
+correct: p.name,
+fylke: p.fylke,
+options: buildOptionsForPlace(p),
+lat: p.lat,
+lon: p.lon
+}));
+}
+
+function updateMapForCurrent(){
+const q = questions[idx];
+const z = parseInt(document.getElementById("zoom").value, 10);
+renderTilesPrecise(q.lat, q.lon, z);
+}
+
+function render(){
+const q = questions[idx];
+document.getElementById("progress").textContent = `Spørsmål ${idx+1} / ${questions.length}`;
+document.getElementById("score").textContent = `Poeng ${score}`;
+document.getElementById("fylke").textContent = `Fylke: ${q.fylke}`;
+
+const optsEl = document.getElementById("opts");
+optsEl.innerHTML = "";
+locked = false;
+
+q.options.forEach(opt=>{
+const b = document.createElement("button");
+b.className = "opt";
+b.textContent = opt;
+b.onclick = () => pick(opt);
+optsEl.appendChild(b);
+});
+
+updateMapForCurrent();
+}
+
+function pick(opt){
+if (locked) return;
+locked = true;
+const q = questions[idx];
+const buttons = [...document.querySelectorAll("button.opt")];
+
+buttons.forEach(btn=>{
+btn.disabled = true;
+if (btn.textContent === q.correct) btn.classList.add("good");
+if (btn.textContent === opt && opt !== q.correct) btn.classList.add("bad");
+if (btn.textContent !== q.correct && btn.textContent !== opt) btn.classList.add("muted");
+});
+
+if (opt === q.correct) score++;
+
+setTimeout(()=>{
+idx++;
+if (idx >= questions.length){
+alert(`Ferdig! Poeng: ${score} / ${questions.length}`);
+restart();
+} else {
+render();
+}
+}, 750);
+}
+
+function restart(){
+questions = buildQuestions();
+idx = 0;
+score = 0;
+render();
+}
+
+// UI wires
+const zoomEl = document.getElementById("zoom");
+const zoomVal = document.getElementById("zoomVal");
+zoomEl.addEventListener("input", () => zoomVal.textContent = zoomEl.value);
+zoomEl.addEventListener("change", updateMapForCurrent);
+
+const maskEl = document.getElementById("maskSize");
+const maskVal = document.getElementById("maskVal");
+const mask = document.getElementById("mask");
+function applyMask(){
+const px = parseInt(maskEl.value, 10);
+mask.style.width = px + "px";
+mask.style.height = px + "px";
+maskVal.textContent = px + "px";
+}
+maskEl.addEventListener("input", applyMask);
+applyMask();
+
+document.getElementById("newTiles").onclick = updateMapForCurrent;
+document.getElementById("restart").onclick = restart;
+document.getElementById("skip").onclick = () => {
+if (locked) return;
+idx++;
+if (idx >= questions.length) { alert(`Ferdig! Poeng: ${score} / ${questions.length}`); restart(); }
+else render();
+};
+
+// Initial
+restart();
+</script>
+</body>
+</html>
