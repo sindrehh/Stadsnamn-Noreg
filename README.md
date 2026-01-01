@@ -1,0 +1,1 @@
+# Stadsnamn-Noreg
