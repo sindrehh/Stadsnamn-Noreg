@@ -78,6 +78,7 @@ font-weight: 700;
 cursor:pointer;
 }
 .btn2 { background: transparent; color:#e5e7eb; font-weight:600; }
+.btn[disabled] { opacity: .65; cursor: default; }
 
 .note { margin-top: 8px; font-size: 12px; opacity:.7; }
 a { color:#c7d2fe; }
@@ -420,10 +421,6 @@ let idx = 0;
 let score = 0;
 let locked = false;
 
-function getPlaceByName(name){
-  return PLACES.find(p => p.name === name) || null;
-}
-
 function buildOptionsForPlace(p){
   const opts = [p.name];
   const used = new Set(opts);
@@ -457,9 +454,7 @@ function buildOptionsForPlace(p){
 }
 
 function buildQuestions(){
-  // 30 heilt tilfeldige stadar kvar runde (utan duplikat i same runde)
   const base = shuffle(PLACES).slice(0, Math.min(QUESTIONS_PER_ROUND, PLACES.length));
-
   return base.map(p => ({
     correct: p.name,
     fylke: p.fylke,
@@ -489,6 +484,16 @@ function showFactForCorrect(q){
   factEl.style.display = "block";
 }
 
+function goNext(){
+  idx++;
+  if (idx >= questions.length){
+    alert(`Ferdig! Poeng: ${score} / ${questions.length}`);
+    restart();
+  } else {
+    render();
+  }
+}
+
 function render(){
   const q = questions[idx];
   document.getElementById("progress").textContent = `Spørsmål ${idx+1} / ${questions.length}`;
@@ -499,6 +504,9 @@ function render(){
   optsEl.innerHTML = "";
   locked = false;
   hideFact();
+
+  // "Neste" skal ikkje kunne trykkast før du har svart
+  document.getElementById("next").disabled = true;
 
   q.options.forEach(opt=>{
     const b = document.createElement("button");
@@ -514,6 +522,7 @@ function render(){
 function pick(opt){
   if (locked) return;
   locked = true;
+
   const q = questions[idx];
   const buttons = [...document.querySelectorAll("button.opt")];
 
@@ -529,8 +538,9 @@ function pick(opt){
   // Vis alltid fact for riktig svar (uavhengig av rett/feil)
   showFactForCorrect(q);
 
- document.getElementById("next").disabled = false;
-
+  // IKKJE auto-vidare; la brukaren trykke Neste
+  document.getElementById("next").disabled = false;
+}
 
 function restart(){
   questions = buildQuestions();
@@ -559,12 +569,26 @@ applyMask();
 
 document.getElementById("newTiles").onclick = updateMapForCurrent;
 document.getElementById("restart").onclick = restart;
+
+// Skip: hoppar over spørsmålet (utan å svare)
 document.getElementById("skip").onclick = () => {
   if (locked) return;
-  idx++;
-  if (idx >= questions.length) { alert(`Ferdig! Poeng: ${score} / ${questions.length}`); restart(); }
-  else render();
+  goNext();
 };
+
+// Neste: går vidare etter at du har svart
+document.getElementById("next").onclick = () => {
+  if (!locked) return;
+  document.getElementById("next").disabled = true;
+  goNext();
+};
+
+// (Valfritt) Enter for Neste etter svar
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && locked && !document.getElementById("next").disabled) {
+    document.getElementById("next").click();
+  }
+});
 
 // Initial
 restart();
