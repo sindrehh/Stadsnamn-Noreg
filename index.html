@@ -67,7 +67,7 @@ button.opt[disabled] { cursor: default; opacity: .85; }
 .bad { background: rgba(244,63,94,.28) !important; border-color: rgba(244,63,94,.55) !important; }
 .muted { opacity:.7; }
 
-.actions { display:flex; gap:10px; flex-wrap: wrap; margin-top: 12px; }
+.actions { display:flex; gap:10px; flex-wrap: wrap; margin-top: 12px; align-items:center; }
 .btn {
 padding: 10px 12px;
 border-radius: 12px;
@@ -94,6 +94,19 @@ a { color:#c7d2fe; }
 }
 .factBox b { font-weight: 800; }
 .factBox .icon { opacity: .9; margin-right: 6px; }
+
+/* "Neste"-rad som dukkar opp etter svar */
+.nextRow{
+  margin-top: 10px;
+  display:none;
+  gap:10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+.nextHint{
+  font-size: 12px;
+  opacity:.75;
+}
 </style>
 </head>
 <body>
@@ -145,6 +158,12 @@ a { color:#c7d2fe; }
 
       <!-- Funfact (visast etter svar) -->
       <div id="factBox" class="factBox" style="display:none;"></div>
+
+      <!-- Neste-kontroll (visast etter svar) -->
+      <div class="nextRow" id="nextRow">
+        <button class="btn" id="nextBtn">Neste</button>
+        <div class="nextHint">Tips: Trykk <b>Enter</b> for neste.</div>
+      </div>
 
       <div class="actions">
         <button class="btn" id="restart">Start på nytt</button>
@@ -434,7 +453,7 @@ function latLonToWorldPx(lat, lon, z){
 
   const latClamped = clamp(lat, -85.05112878, 85.05112878);
   const rad = latClamped * Math.PI / 180;
-  const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / 2 * n * TILE_SIZE;
+  const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / Math.PI / 2 * n * TILE_SIZE;
 
   return { x, y, n };
 }
@@ -516,6 +535,7 @@ let questions = [];
 let idx = 0;
 let score = 0;
 let locked = false;
+let awaitingNext = false;
 
 function buildOptionsForPlace(p){
   const opts = [p.name];
@@ -552,7 +572,6 @@ function buildOptionsForPlace(p){
 function buildQuestions(){
   // 30 heilt tilfeldige stadar kvar runde (utan duplikat i same runde)
   const base = shuffle(PLACES).slice(0, Math.min(QUESTIONS_PER_ROUND, PLACES.length));
-
   return base.map(p => ({
     correct: p.name,
     fylke: p.fylke,
@@ -581,6 +600,28 @@ function showFactForCorrect(q){
   factEl.style.display = "block";
 }
 
+function showNextControls(){
+  document.getElementById("nextRow").style.display = "flex";
+}
+
+function hideNextControls(){
+  document.getElementById("nextRow").style.display = "none";
+}
+
+function goNext(){
+  if (!awaitingNext) return;
+  awaitingNext = false;
+  hideNextControls();
+
+  idx++;
+  if (idx >= questions.length){
+    alert(`Ferdig! Poeng: ${score} / ${questions.length}`);
+    restart();
+  } else {
+    render();
+  }
+}
+
 function render(){
   const q = questions[idx];
   document.getElementById("progress").textContent = `Spørsmål ${idx+1} / ${questions.length}`;
@@ -590,7 +631,9 @@ function render(){
   const optsEl = document.getElementById("opts");
   optsEl.innerHTML = "";
   locked = false;
+  awaitingNext = false;
   hideFact();
+  hideNextControls();
 
   q.options.forEach(opt=>{
     const b = document.createElement("button");
@@ -621,15 +664,9 @@ function pick(opt){
   // Vis alltid fact for riktig svar (uavhengig av rett/feil)
   showFactForCorrect(q);
 
-  setTimeout(()=>{
-    idx++;
-    if (idx >= questions.length){
-      alert(`Ferdig! Poeng: ${score} / ${questions.length}`);
-      restart();
-    } else {
-      render();
-    }
-  }, 900);
+  // Vent på brukaren før neste spørsmål
+  awaitingNext = true;
+  showNextControls();
 }
 
 function restart(){
@@ -660,11 +697,21 @@ applyMask();
 document.getElementById("newTiles").onclick = updateMapForCurrent;
 document.getElementById("restart").onclick = restart;
 document.getElementById("skip").onclick = () => {
-  if (locked) return;
+  if (locked || awaitingNext) return;
   idx++;
   if (idx >= questions.length) { alert(`Ferdig! Poeng: ${score} / ${questions.length}`); restart(); }
   else render();
 };
+
+// Neste-knapp + Enter
+document.getElementById("nextBtn").onclick = goNext;
+document.addEventListener("keydown", (e) => {
+  if (!awaitingNext) return;
+  if (e.key === "Enter") {
+    e.preventDefault();
+    goNext();
+  }
+});
 
 // Initial
 restart();
