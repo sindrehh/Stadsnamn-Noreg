@@ -85,259 +85,306 @@ a { color:#c7d2fe; }
 </head>
 <body>
 <div class="wrap">
-<div class="card">
-<h1>Stadsnamn-quiz 🇳🇴</h1>
-<div class="meta">
-<div class="pill" id="progress">Spørsmål 1</div>
-<div class="pill" id="score">Poeng 0</div>
-<div class="pill" id="fylke">Fylke: –</div>
-</div>
-</div>
+  <div class="card">
+    <h1>Stadsnamn-quiz 🇳🇴</h1>
+    <div class="meta">
+      <div class="pill" id="progress">Spørsmål 1</div>
+      <div class="pill" id="score">Poeng 0</div>
+      <div class="pill" id="fylke">Fylke: –</div>
+    </div>
+  </div>
 
-<div style="height:12px"></div>
+  <div style="height:12px"></div>
 
-<div class="row">
-<div class="card mapWrap">
-<div class="map" aria-label="Kartutsnitt">
-<div class="tiles" id="tiles"></div>
-<div class="mask" id="mask"></div>
-<div class="attrib">
-Kart: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
-</div>
-</div>
+  <div class="row">
+    <div class="card mapWrap">
+      <div class="map" aria-label="Kartutsnitt">
+        <div class="tiles" id="tiles"></div>
+        <div class="mask" id="mask"></div>
+        <div class="attrib">
+          Kart: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+        </div>
+      </div>
 
-<div class="controls">
-<label>Zoom
-<input id="zoom" type="range" min="6" max="12" step="1" value="9">
-<span id="zoomVal">9</span>
-</label>
-<label>Mask
-<input id="maskSize" type="range" min="28" max="140" step="2" value="88">
-<span id="maskVal">88px</span>
-</label>
-<button class="btn btn2" id="newTiles">Oppdater kart</button>
-</div>
+      <div class="controls">
+        <label>Zoom
+          <input id="zoom" type="range" min="6" max="12" step="1" value="9">
+          <span id="zoomVal">9</span>
+        </label>
+        <label>Mask
+          <input id="maskSize" type="range" min="28" max="140" step="2" value="88">
+          <span id="maskVal">88px</span>
+        </label>
+        <button class="btn btn2" id="newTiles">Oppdater kart</button>
+      </div>
 
-<div class="note">
-NB: Ekte OSM-kartfliser (treng internett). Om du ser tomme ruter: vent litt eller trykk “Oppdater kart”.
-</div>
-</div>
+      <div class="note">
+        NB: Ekte OSM-kartfliser (treng internett). Om du ser tomme ruter: vent litt eller trykk “Oppdater kart”.
+      </div>
+    </div>
 
-<div class="card">
-<div style="font-weight:800; font-size:16px;">Kva heiter denne staden?</div>
-<div class="muted" style="margin-top:6px">
-Vel eitt av fire alternativ (frå same fylke eller nærområdet).
-</div>
-<div class="opts" id="opts"></div>
+    <div class="card">
+      <div style="font-weight:800; font-size:16px;">Kva heiter denne staden?</div>
+      <div class="muted" style="margin-top:6px">
+        Vel eitt av fire alternativ (frå same fylke eller nærområdet).
+      </div>
+      <div class="opts" id="opts"></div>
 
-<div class="actions">
-<button class="btn" id="restart">Start på nytt</button>
-<button class="btn btn2" id="skip">Hopp over</button>
-</div>
+      <div class="actions">
+        <button class="btn" id="restart">Start på nytt</button>
+        <button class="btn btn2" id="skip">Hopp over</button>
+      </div>
 
-<div class="note">
-Tips: Zoom ned for lettare, zoom opp for vanskelegare. Mask kan justerast om labels “stikk ut”.
-</div>
-</div>
-</div>
+      <div class="note">
+        Tips: Zoom ned for lettare, zoom opp for vanskelegare. Mask kan justerast om labels “stikk ut”.
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
+const QUESTIONS_PER_ROUND = 30;
+
 // OSM Standard tiles
 const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const TILE_SIZE = 256;
 
 // Små/mellomstore stader med ca-koordinatar.
 const PLACES = [
-// Finnmark
-{ name:"Kirkenes", fylke:"Finnmark", lat:69.7271, lon:30.0458 },
-{ name:"Lakselv", fylke:"Finnmark", lat:70.0516, lon:24.9731 },
-{ name:"Vadsø", fylke:"Finnmark", lat:70.0735, lon:29.7494 },
-{ name:"Vardø", fylke:"Finnmark", lat:70.3705, lon:31.1107 },
-{ name:"Honningsvåg",fylke:"Finnmark", lat:70.9821, lon:25.9704 },
-{ name:"Karasjok", fylke:"Finnmark", lat:69.4719, lon:25.5110 },
-{ name:"Kjøllefjord", fylke:"Finnmark", lat:70.9452, lon:27.3507 },
-{ name:"Mehamn", fylke:"Finnmark", lat:71.0340, lon:27.8513 },
-{ name:"Båtsfjord", fylke:"Finnmark", lat:70.6340, lon:29.7174 },
-{ name:"Tana bru", fylke:"Finnmark", lat:70.1994, lon:28.1903 },
+  // Finnmark (original + tidlegare tillegg)
+  { name:"Kirkenes", fylke:"Finnmark", lat:69.7271, lon:30.0458 },
+  { name:"Lakselv", fylke:"Finnmark", lat:70.0516, lon:24.9731 },
+  { name:"Vadsø", fylke:"Finnmark", lat:70.0735, lon:29.7494 },
+  { name:"Vardø", fylke:"Finnmark", lat:70.3705, lon:31.1107 },
+  { name:"Honningsvåg",fylke:"Finnmark", lat:70.9821, lon:25.9704 },
+  { name:"Karasjok", fylke:"Finnmark", lat:69.4719, lon:25.5110 },
+  { name:"Kjøllefjord", fylke:"Finnmark", lat:70.9452, lon:27.3507 },
+  { name:"Mehamn", fylke:"Finnmark", lat:71.0340, lon:27.8513 },
+  { name:"Båtsfjord", fylke:"Finnmark", lat:70.6340, lon:29.7174 },
+  { name:"Tana bru", fylke:"Finnmark", lat:70.1994, lon:28.1903 },
+  // NYE (4)
+  { name:"Berlevåg", fylke:"Finnmark", lat:70.8574, lon:29.0866 },
+  { name:"Kautokeino", fylke:"Finnmark", lat:69.0120, lon:23.0417 },
+  { name:"Gamvik", fylke:"Finnmark", lat:71.0419, lon:27.8518 },
+  { name:"Bugøynes", fylke:"Finnmark", lat:69.9608, lon:29.9758 },
 
-// Troms
-{ name:"Finnsnes", fylke:"Troms", lat:69.2307, lon:18.0084 },
-{ name:"Setermoen", fylke:"Troms", lat:68.8561, lon:18.3481 },
-{ name:"Bardufoss", fylke:"Troms", lat:69.0558, lon:18.5365 },
-{ name:"Sjøvegan", fylke:"Troms", lat:68.8756, lon:17.8523 },
-{ name:"Skjervøy", fylke:"Troms", lat:70.0286, lon:20.9713 },
-{ name:"Hansnes", fylke:"Troms", lat:69.9686, lon:19.6230 },
-{ name:"Storslett", fylke:"Troms", lat:69.7707, lon:21.0261 },
-{ name:"Lyngseidet", fylke:"Troms", lat:69.5767, lon:20.2185 },
-{ name:"Botnhamn", fylke:"Troms", lat:69.5142, lon:17.8991 },
+  // Troms (original + tidlegare tillegg)
+  { name:"Finnsnes", fylke:"Troms", lat:69.2307, lon:18.0084 },
+  { name:"Setermoen", fylke:"Troms", lat:68.8561, lon:18.3481 },
+  { name:"Bardufoss", fylke:"Troms", lat:69.0558, lon:18.5365 },
+  { name:"Sjøvegan", fylke:"Troms", lat:68.8756, lon:17.8523 },
+  { name:"Skjervøy", fylke:"Troms", lat:70.0286, lon:20.9713 },
+  { name:"Hansnes", fylke:"Troms", lat:69.9686, lon:19.6230 },
+  { name:"Storslett", fylke:"Troms", lat:69.7707, lon:21.0261 },
+  { name:"Lyngseidet", fylke:"Troms", lat:69.5767, lon:20.2185 },
+  { name:"Botnhamn", fylke:"Troms", lat:69.5142, lon:17.8991 },
+  // NYE (4)
+  { name:"Burfjord", fylke:"Troms", lat:69.9426, lon:21.2131 },
+  { name:"Moen", fylke:"Troms", lat:69.1300, lon:18.6100 },
+  { name:"Sørkjosen", fylke:"Troms", lat:69.7867, lon:20.9597 },
+  { name:"Botnhamn (Senja)", fylke:"Troms", lat:69.5142, lon:17.8991 },
 
-// Nordland
-{ name:"Fauske", fylke:"Nordland", lat:67.2591, lon:15.3917 },
-{ name:"Rognan", fylke:"Nordland", lat:67.1008, lon:15.3906 },
-{ name:"Leknes", fylke:"Nordland", lat:68.1475, lon:13.6119 },
-{ name:"Svolvær", fylke:"Nordland", lat:68.2341, lon:14.5683 },
-{ name:"Andenes", fylke:"Nordland", lat:69.3143, lon:16.1194 },
-{ name:"Ballangen", fylke:"Nordland", lat:68.3426, lon:16.8316 },
-{ name:"Drag", fylke:"Nordland", lat:68.0812, lon:15.6027 },
-{ name:"Reine", fylke:"Nordland", lat:67.9327, lon:13.0892 },
-{ name:"Inndyr", fylke:"Nordland", lat:67.0335, lon:14.0286 },
+  // Nordland (original + tidlegare tillegg)
+  { name:"Fauske", fylke:"Nordland", lat:67.2591, lon:15.3917 },
+  { name:"Rognan", fylke:"Nordland", lat:67.1008, lon:15.3906 },
+  { name:"Leknes", fylke:"Nordland", lat:68.1475, lon:13.6119 },
+  { name:"Svolvær", fylke:"Nordland", lat:68.2341, lon:14.5683 },
+  { name:"Andenes", fylke:"Nordland", lat:69.3143, lon:16.1194 },
+  { name:"Ballangen", fylke:"Nordland", lat:68.3426, lon:16.8316 },
+  { name:"Drag", fylke:"Nordland", lat:68.0812, lon:15.6027 },
+  { name:"Reine", fylke:"Nordland", lat:67.9327, lon:13.0892 },
+  { name:"Inndyr", fylke:"Nordland", lat:67.0335, lon:14.0286 },
+  // NYE (4)
+  { name:"Hemnesberget", fylke:"Nordland", lat:66.2205, lon:13.6212 },
+  { name:"Hamarøyhamn", fylke:"Nordland", lat:68.0810, lon:15.7790 },
+  { name:"Myre", fylke:"Nordland", lat:68.9156, lon:15.0935 },
+  { name:"Reipå", fylke:"Nordland", lat:66.8218, lon:13.5708 },
 
-// Trøndelag
-{ name:"Røros", fylke:"Trøndelag", lat:62.5747, lon:11.3841 },
-{ name:"Oppdal", fylke:"Trøndelag", lat:62.5941, lon:9.6910 },
-{ name:"Støren", fylke:"Trøndelag", lat:63.0484, lon:10.2811 },
-{ name:"Brekstad", fylke:"Trøndelag", lat:63.7136, lon:9.6636 },
-{ name:"Å (Inderøy)", fylke:"Trøndelag", lat:63.9610, lon:11.3055 },
-{ name:"Rissa", fylke:"Trøndelag", lat:63.5834, lon:10.0063 },
-{ name:"Lensvik", fylke:"Trøndelag", lat:63.5179, lon:9.8153 },
-{ name:"Børsa", fylke:"Trøndelag", lat:63.1716, lon:10.2407 },
+  // Trøndelag (original + tidlegare tillegg)
+  { name:"Røros", fylke:"Trøndelag", lat:62.5747, lon:11.3841 },
+  { name:"Oppdal", fylke:"Trøndelag", lat:62.5941, lon:9.6910 },
+  { name:"Støren", fylke:"Trøndelag", lat:63.0484, lon:10.2811 },
+  { name:"Brekstad", fylke:"Trøndelag", lat:63.7136, lon:9.6636 },
+  { name:"Å (Inderøy)", fylke:"Trøndelag", lat:63.9610, lon:11.3055 },
+  { name:"Rissa", fylke:"Trøndelag", lat:63.5834, lon:10.0063 },
+  { name:"Lensvik", fylke:"Trøndelag", lat:63.5179, lon:9.8153 },
+  { name:"Børsa", fylke:"Trøndelag", lat:63.1716, lon:10.2407 },
+  // NYE (4)
+  { name:"Kyrksæterøra", fylke:"Trøndelag", lat:63.2896, lon:8.7357 },
+  { name:"Snåsa", fylke:"Trøndelag", lat:64.2450, lon:12.3770 },
+  { name:"Åsen", fylke:"Trøndelag", lat:63.6170, lon:10.9390 },
+  { name:"Rørvik", fylke:"Trøndelag", lat:64.8624, lon:11.2408 },
 
-// Vestland
-{ name:"Odda", fylke:"Vestland", lat:60.0697, lon:6.5457 },
-{ name:"Norheimsund", fylke:"Vestland", lat:60.3703, lon:6.1452 },
-{ name:"Måløy", fylke:"Vestland", lat:61.9354, lon:5.1136 },
-{ name:"Rosendal", fylke:"Vestland", lat:59.9867, lon:6.0115 },
-{ name:"Aurland", fylke:"Vestland", lat:60.9056, lon:7.1876 },
-{ name:"Flåm", fylke:"Vestland", lat:60.8623, lon:7.1148 },
-{ name:"Vikøyri", fylke:"Vestland", lat:61.0873, lon:6.5787 },
-{ name:"Fitjar", fylke:"Vestland", lat:59.9190, lon:5.3171 },
+  // Vestland (original + tidlegare tillegg)
+  { name:"Odda", fylke:"Vestland", lat:60.0697, lon:6.5457 },
+  { name:"Norheimsund", fylke:"Vestland", lat:60.3703, lon:6.1452 },
+  { name:"Måløy", fylke:"Vestland", lat:61.9354, lon:5.1136 },
+  { name:"Rosendal", fylke:"Vestland", lat:59.9867, lon:6.0115 },
+  { name:"Aurland", fylke:"Vestland", lat:60.9056, lon:7.1876 },
+  { name:"Flåm", fylke:"Vestland", lat:60.8623, lon:7.1148 },
+  { name:"Vikøyri", fylke:"Vestland", lat:61.0873, lon:6.5787 },
+  { name:"Fitjar", fylke:"Vestland", lat:59.9190, lon:5.3171 },
+  // NYE (4)
+  { name:"Nordfjordeid", fylke:"Vestland", lat:61.9055, lon:6.0020 },
+  { name:"Masfjordnes", fylke:"Vestland", lat:60.7990, lon:5.2910 },
+  { name:"Lærdalsøyri", fylke:"Vestland", lat:61.1006, lon:7.4829 },
+  { name:"Skånevik", fylke:"Vestland", lat:59.9997, lon:5.7597 },
 
-// Rogaland
-{ name:"Sauda", fylke:"Rogaland", lat:59.6509, lon:6.3541 },
-{ name:"Jørpeland", fylke:"Rogaland", lat:58.9861, lon:6.0406 },
-{ name:"Nærbø", fylke:"Rogaland", lat:58.6642, lon:5.6377 },
-{ name:"Skudeneshavn",fylke:"Rogaland",lat:59.1482, lon:5.2638 },
-{ name:"Vikeså", fylke:"Rogaland", lat:58.6351, lon:6.0935 },
-{ name:"Ålgård", fylke:"Rogaland", lat:58.7645, lon:5.8537 },
-{ name:"Varhaug", fylke:"Rogaland", lat:58.6176, lon:5.6443 },
-{ name:"Sirevåg", fylke:"Rogaland", lat:58.5022, lon:5.5735 },
+  // Rogaland (original + tidlegare tillegg)
+  { name:"Sauda", fylke:"Rogaland", lat:59.6509, lon:6.3541 },
+  { name:"Jørpeland", fylke:"Rogaland", lat:58.9861, lon:6.0406 },
+  { name:"Nærbø", fylke:"Rogaland", lat:58.6642, lon:5.6377 },
+  { name:"Skudeneshavn",fylke:"Rogaland",lat:59.1482, lon:5.2638 },
+  { name:"Vikeså", fylke:"Rogaland", lat:58.6351, lon:6.0935 },
+  { name:"Ålgård", fylke:"Rogaland", lat:58.7645, lon:5.8537 },
+  { name:"Varhaug", fylke:"Rogaland", lat:58.6176, lon:5.6443 },
+  { name:"Sirevåg", fylke:"Rogaland", lat:58.5022, lon:5.5735 },
+  // NYE (4)
+  { name:"Vigrestad", fylke:"Rogaland", lat:58.5710, lon:5.6900 },
+  { name:"Suldalsosen", fylke:"Rogaland", lat:59.4870, lon:6.2680 },
+  { name:"Åkra", fylke:"Rogaland", lat:59.2600, lon:5.1900 },
+  { name:"Egersund", fylke:"Rogaland", lat:58.4513, lon:5.9997 },
 
-// Agder
-{ name:"Flekkefjord",fylke:"Agder", lat:58.2973, lon:6.6609 },
-{ name:"Farsund", fylke:"Agder", lat:58.0959, lon:6.8031 },
-{ name:"Lyngdal", fylke:"Agder", lat:58.1379, lon:7.0766 },
-{ name:"Evje", fylke:"Agder", lat:58.5848, lon:7.7997 },
-{ name:"Birkeland", fylke:"Agder", lat:58.3335, lon:8.2334 },
-{ name:"Byglandsfjord", fylke:"Agder", lat:58.9218, lon:7.7684 },
-{ name:"Tvedestrand", fylke:"Agder", lat:58.6234, lon:8.9274 },
-{ name:"Hægeland", fylke:"Agder", lat:58.2364, lon:7.9334 },
+  // Agder (original + tidlegare tillegg)
+  { name:"Flekkefjord",fylke:"Agder", lat:58.2973, lon:6.6609 },
+  { name:"Farsund", fylke:"Agder", lat:58.0959, lon:6.8031 },
+  { name:"Lyngdal", fylke:"Agder", lat:58.1379, lon:7.0766 },
+  { name:"Evje", fylke:"Agder", lat:58.5848, lon:7.7997 },
+  { name:"Birkeland", fylke:"Agder", lat:58.3335, lon:8.2334 },
+  { name:"Byglandsfjord", fylke:"Agder", lat:58.9218, lon:7.7684 },
+  { name:"Tvedestrand", fylke:"Agder", lat:58.6234, lon:8.9274 },
+  { name:"Hægeland", fylke:"Agder", lat:58.2364, lon:7.9334 },
+  // NYE (4)
+  { name:"Valle", fylke:"Agder", lat:59.2050, lon:7.5350 },
+  { name:"Åmli", fylke:"Agder", lat:58.7670, lon:8.4930 },
+  { name:"Søgne", fylke:"Agder", lat:58.0930, lon:7.8070 },
+  { name:"Tonstad", fylke:"Agder", lat:58.6620, lon:6.7150 },
 
-// Innlandet
-{ name:"Otta", fylke:"Innlandet",lat:61.7716, lon:9.5376 },
-{ name:"Fagernes", fylke:"Innlandet",lat:60.9854, lon:9.2320 },
-{ name:"Dokka", fylke:"Innlandet",lat:60.8361, lon:10.0683 },
-{ name:"Trysil", fylke:"Innlandet",lat:61.3137, lon:12.2647 },
-{ name:"Vågåmo", fylke:"Innlandet", lat:61.8755, lon:9.0946 },
-{ name:"Ringebu", fylke:"Innlandet", lat:61.5293, lon:10.1354 },
-{ name:"Brandbu", fylke:"Innlandet", lat:60.4194, lon:10.6475 },
-{ name:"Tolga", fylke:"Innlandet", lat:62.4071, lon:11.0204 },
+  // Innlandet (original + tidlegare tillegg)
+  { name:"Otta", fylke:"Innlandet",lat:61.7716, lon:9.5376 },
+  { name:"Fagernes", fylke:"Innlandet",lat:60.9854, lon:9.2320 },
+  { name:"Dokka", fylke:"Innlandet",lat:60.8361, lon:10.0683 },
+  { name:"Trysil", fylke:"Innlandet",lat:61.3137, lon:12.2647 },
+  { name:"Vågåmo", fylke:"Innlandet", lat:61.8755, lon:9.0946 },
+  { name:"Ringebu", fylke:"Innlandet", lat:61.5293, lon:10.1354 },
+  { name:"Brandbu", fylke:"Innlandet", lat:60.4194, lon:10.6475 },
+  { name:"Tolga", fylke:"Innlandet", lat:62.4071, lon:11.0204 },
+  // NYE (4)
+  { name:"Skjåk", fylke:"Innlandet", lat:61.8840, lon:8.2660 },
+  { name:"Engerdal", fylke:"Innlandet", lat:61.7570, lon:11.9700 },
+  { name:"Vestre Slidre", fylke:"Innlandet", lat:61.0860, lon:9.0780 },
+  { name:"Rendalen", fylke:"Innlandet", lat:61.8910, lon:11.0720 },
 
-// Viken
-{ name:"Årnes", fylke:"Viken", lat:60.1230, lon:11.4636 },
-{ name:"Mysen", fylke:"Viken", lat:59.5530, lon:11.3276 },
-{ name:"Rakkestad", fylke:"Viken", lat:59.4257, lon:11.3392 },
-{ name:"Vikersund", fylke:"Viken", lat:59.9648, lon:9.9915 },
-{ name:"Røyken", fylke:"Viken", lat:59.7402, lon:10.4116 },
-{ name:"Lierbyen", fylke:"Viken", lat:59.7856, lon:10.2456 },
-{ name:"Nesbyen", fylke:"Viken", lat:60.5695, lon:9.1020 },
-{ name:"Aurskog", fylke:"Viken", lat:59.9269, lon:11.5694 },
+  // Viken (original + tidlegare tillegg)
+  { name:"Årnes", fylke:"Viken", lat:60.1230, lon:11.4636 },
+  { name:"Mysen", fylke:"Viken", lat:59.5530, lon:11.3276 },
+  { name:"Rakkestad", fylke:"Viken", lat:59.4257, lon:11.3392 },
+  { name:"Vikersund", fylke:"Viken", lat:59.9648, lon:9.9915 },
+  { name:"Røyken", fylke:"Viken", lat:59.7402, lon:10.4116 },
+  { name:"Lierbyen", fylke:"Viken", lat:59.7856, lon:10.2456 },
+  { name:"Nesbyen", fylke:"Viken", lat:60.5695, lon:9.1020 },
+  { name:"Aurskog", fylke:"Viken", lat:59.9269, lon:11.5694 },
+  // NYE (4)
+  { name:"Rødberg", fylke:"Viken", lat:60.2660, lon:8.9450 },
+  { name:"Aremark", fylke:"Viken", lat:59.2200, lon:11.6950 },
+  { name:"Hol", fylke:"Viken", lat:60.6150, lon:8.3000 },
+  { name:"Son", fylke:"Viken", lat:59.5230, lon:10.6840 },
 ];
 
 function groupBy(arr, key){
-return arr.reduce((acc,x)=>((acc[x[key]] ??= []).push(x), acc), {});
+  return arr.reduce((acc,x)=>((acc[x[key]] ??= []).push(x), acc), {});
 }
 function shuffle(a){
-a = a.slice();
-for (let i=a.length-1;i>0;i--){
-const j = Math.floor(Math.random()*(i+1));
-[a[i],a[j]]=[a[j],a[i]];
-}
-return a;
+  a = a.slice();
+  for (let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
 }
 function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
 
 // ---------- Pixel-presis Web Mercator ----------
 function latLonToWorldPx(lat, lon, z){
-const n = Math.pow(2, z);
-const x = (lon + 180) / 360 * n * TILE_SIZE;
+  const n = Math.pow(2, z);
+  const x = (lon + 180) / 360 * n * TILE_SIZE;
 
-const latClamped = clamp(lat, -85.05112878, 85.05112878);
-const rad = latClamped * Math.PI / 180;
-const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / 2 * n * TILE_SIZE;
+  const latClamped = clamp(lat, -85.05112878, 85.05112878);
+  const rad = latClamped * Math.PI / 180;
+  const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / 2 * n * TILE_SIZE;
 
-return { x, y, n };
+  return { x, y, n };
 }
 
 function renderTilesPrecise(lat, lon, z){
-const tilesEl = document.getElementById("tiles");
-tilesEl.innerHTML = "";
+  const tilesEl = document.getElementById("tiles");
+  tilesEl.innerHTML = "";
 
-const mapEl = tilesEl.parentElement;
-const rect = mapEl.getBoundingClientRect();
+  const mapEl = tilesEl.parentElement;
+  const rect = mapEl.getBoundingClientRect();
 
-const cols = 5, rows = 4;
-const totalW = cols * TILE_SIZE, totalH = rows * TILE_SIZE;
-const scale = Math.max(rect.width / totalW, rect.height / totalH);
+  const cols = 5, rows = 4;
+  const totalW = cols * TILE_SIZE, totalH = rows * TILE_SIZE;
+  const scale = Math.max(rect.width / totalW, rect.height / totalH);
 
-tilesEl.style.width = totalW + "px";
-tilesEl.style.height = totalH + "px";
+  tilesEl.style.width = totalW + "px";
+  tilesEl.style.height = totalH + "px";
 
-const wp = latLonToWorldPx(lat, lon, z);
-const nTiles = wp.n;
+  const wp = latLonToWorldPx(lat, lon, z);
+  const nTiles = wp.n;
 
-const cx = Math.floor(wp.x / TILE_SIZE);
-const cy = Math.floor(wp.y / TILE_SIZE);
+  const cx = Math.floor(wp.x / TILE_SIZE);
+  const cy = Math.floor(wp.y / TILE_SIZE);
 
-let startX = cx - Math.floor(cols / 2);
-let startY = clamp(cy - Math.floor(rows / 2), 0, nTiles - rows);
+  let startX = cx - Math.floor(cols / 2);
+  let startY = clamp(cy - Math.floor(rows / 2), 0, nTiles - rows);
 
-const startWorldX = startX * TILE_SIZE;
-const startWorldY = startY * TILE_SIZE;
+  const startWorldX = startX * TILE_SIZE;
+  const startWorldY = startY * TILE_SIZE;
 
-const offsetX = wp.x - startWorldX;
-const offsetY = wp.y - startWorldY;
+  const offsetX = wp.x - startWorldX;
+  const offsetY = wp.y - startWorldY;
 
-const targetX = (rect.width / scale) / 2;
-const targetY = (rect.height / scale) / 2;
+  const targetX = (rect.width / scale) / 2;
+  const targetY = (rect.height / scale) / 2;
 
-const tx = targetX - offsetX;
-const ty = targetY - offsetY;
+  const tx = targetX - offsetX;
+  const ty = targetY - offsetY;
 
-tilesEl.style.transform = `scale(${scale}) translate(${tx}px, ${ty}px)`;
+  tilesEl.style.transform = `scale(${scale}) translate(${tx}px, ${ty}px)`;
 
-const maxY = nTiles - 1;
-for (let r = 0; r < rows; r++){
-for (let c = 0; c < cols; c++){
-const rawX = startX + c;
-const x = ((rawX % nTiles) + nTiles) % nTiles;
-const y = clamp(startY + r, 0, maxY);
+  const maxY = nTiles - 1;
+  for (let r = 0; r < rows; r++){
+    for (let c = 0; c < cols; c++){
+      const rawX = startX + c;
+      const x = ((rawX % nTiles) + nTiles) % nTiles;
+      const y = clamp(startY + r, 0, maxY);
 
-const img = document.createElement("img");
-img.className = "tile";
-img.alt = "";
-img.loading = "eager";
-img.decoding = "async";
-img.src = TILE_URL(z, x, y);
-img.style.left = (c * TILE_SIZE) + "px";
-img.style.top = (r * TILE_SIZE) + "px";
-tilesEl.appendChild(img);
-}
-}
+      const img = document.createElement("img");
+      img.className = "tile";
+      img.alt = "";
+      img.loading = "eager";
+      img.decoding = "async";
+      img.src = TILE_URL(z, x, y);
+      img.style.left = (c * TILE_SIZE) + "px";
+      img.style.top = (r * TILE_SIZE) + "px";
+      tilesEl.appendChild(img);
+    }
+  }
 }
 
 // ---------- Nærområde (avstand) ----------
 function haversineKm(a, b){
-const R = 6371;
-const toRad = d => d * Math.PI / 180;
-const dLat = toRad(b.lat - a.lat);
-const dLon = toRad(b.lon - a.lon);
-const lat1 = toRad(a.lat);
-const lat2 = toRad(b.lat);
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
 
-const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
-return R * c;
+  const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+  return R * c;
 }
 
 // ---------- Quiz ----------
@@ -347,108 +394,109 @@ let idx = 0;
 let score = 0;
 let locked = false;
 
-// Vel 3 distraktorar: prøv same fylke først, fyll på med dei nærmaste ellers
 function buildOptionsForPlace(p){
-const opts = [p.name];
-const used = new Set(opts);
+  const opts = [p.name];
+  const used = new Set(opts);
 
-// 1) Først: same fylke
-const same = shuffle((byFylke[p.fylke] || []).filter(x => x.name !== p.name));
-for (const cand of same){
-if (opts.length >= 4) break;
-if (!used.has(cand.name)){
-opts.push(cand.name);
-used.add(cand.name);
-}
-}
+  // Same fylke først
+  const same = shuffle((byFylke[p.fylke] || []).filter(x => x.name !== p.name));
+  for (const cand of same){
+    if (opts.length >= 4) break;
+    if (!used.has(cand.name)){
+      opts.push(cand.name);
+      used.add(cand.name);
+    }
+  }
 
-// 2) Om vi manglar: fyll på med næraste (uansett fylke)
-if (opts.length < 4){
-const sortedByNear = PLACES
-.filter(x => x.name !== p.name && !used.has(x.name))
-.map(x => ({ x, d: haversineKm(p, x) }))
-.sort((a,b) => a.d - b.d)
-.map(o => o.x);
+  // Fyll på med næraste (uansett fylke)
+  if (opts.length < 4){
+    const sortedByNear = PLACES
+      .filter(x => x.name !== p.name && !used.has(x.name))
+      .map(x => ({ x, d: haversineKm(p, x) }))
+      .sort((a,b) => a.d - b.d)
+      .map(o => o.x);
 
-for (const cand of sortedByNear){
-if (opts.length >= 4) break;
-opts.push(cand.name);
-used.add(cand.name);
-}
-}
+    for (const cand of sortedByNear){
+      if (opts.length >= 4) break;
+      opts.push(cand.name);
+      used.add(cand.name);
+    }
+  }
 
-return shuffle(opts);
+  return shuffle(opts);
 }
 
 function buildQuestions(){
-const base = shuffle(PLACES);
-return base.map(p => ({
-correct: p.name,
-fylke: p.fylke,
-options: buildOptionsForPlace(p),
-lat: p.lat,
-lon: p.lon
-}));
+  // 30 heilt tilfeldige stadar kvar runde (utan duplikat i same runde)
+  const base = shuffle(PLACES).slice(0, Math.min(QUESTIONS_PER_ROUND, PLACES.length));
+
+  return base.map(p => ({
+    correct: p.name,
+    fylke: p.fylke,
+    options: buildOptionsForPlace(p),
+    lat: p.lat,
+    lon: p.lon
+  }));
 }
 
 function updateMapForCurrent(){
-const q = questions[idx];
-const z = parseInt(document.getElementById("zoom").value, 10);
-renderTilesPrecise(q.lat, q.lon, z);
+  const q = questions[idx];
+  const z = parseInt(document.getElementById("zoom").value, 10);
+  renderTilesPrecise(q.lat, q.lon, z);
 }
 
 function render(){
-const q = questions[idx];
-document.getElementById("progress").textContent = `Spørsmål ${idx+1} / ${questions.length}`;
-document.getElementById("score").textContent = `Poeng ${score}`;
-document.getElementById("fylke").textContent = `Fylke: ${q.fylke}`;
+  const q = questions[idx];
+  document.getElementById("progress").textContent = `Spørsmål ${idx+1} / ${questions.length}`;
+  document.getElementById("score").textContent = `Poeng ${score}`;
+  document.getElementById("fylke").textContent = `Fylke: ${q.fylke}`;
 
-const optsEl = document.getElementById("opts");
-optsEl.innerHTML = "";
-locked = false;
+  const optsEl = document.getElementById("opts");
+  optsEl.innerHTML = "";
+  locked = false;
 
-q.options.forEach(opt=>{
-const b = document.createElement("button");
-b.className = "opt";
-b.textContent = opt;
-b.onclick = () => pick(opt);
-optsEl.appendChild(b);
-});
+  q.options.forEach(opt=>{
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.textContent = opt;
+    b.onclick = () => pick(opt);
+    optsEl.appendChild(b);
+  });
 
-updateMapForCurrent();
+  updateMapForCurrent();
 }
 
 function pick(opt){
-if (locked) return;
-locked = true;
-const q = questions[idx];
-const buttons = [...document.querySelectorAll("button.opt")];
+  if (locked) return;
+  locked = true;
+  const q = questions[idx];
+  const buttons = [...document.querySelectorAll("button.opt")];
 
-buttons.forEach(btn=>{
-btn.disabled = true;
-if (btn.textContent === q.correct) btn.classList.add("good");
-if (btn.textContent === opt && opt !== q.correct) btn.classList.add("bad");
-if (btn.textContent !== q.correct && btn.textContent !== opt) btn.classList.add("muted");
-});
+  buttons.forEach(btn=>{
+    btn.disabled = true;
+    if (btn.textContent === q.correct) btn.classList.add("good");
+    if (btn.textContent === opt && opt !== q.correct) btn.classList.add("bad");
+    if (btn.textContent !== q.correct && btn.textContent !== opt) btn.classList.add("muted");
+  });
 
-if (opt === q.correct) score++;
+  if (opt === q.correct) score++;
 
-setTimeout(()=>{
-idx++;
-if (idx >= questions.length){
-alert(`Ferdig! Poeng: ${score} / ${questions.length}`);
-restart();
-} else {
-render();
-}
-}, 750);
+  setTimeout(()=>{
+    idx++;
+    if (idx >= questions.length){
+      alert(`Ferdig! Poeng: ${score} / ${questions.length}`);
+      restart();
+    } else {
+      render();
+    }
+  }, 750);
 }
 
 function restart(){
-questions = buildQuestions();
-idx = 0;
-score = 0;
-render();
+  questions = buildQuestions();
+  idx = 0;
+  score = 0;
+  render();
 }
 
 // UI wires
@@ -461,10 +509,10 @@ const maskEl = document.getElementById("maskSize");
 const maskVal = document.getElementById("maskVal");
 const mask = document.getElementById("mask");
 function applyMask(){
-const px = parseInt(maskEl.value, 10);
-mask.style.width = px + "px";
-mask.style.height = px + "px";
-maskVal.textContent = px + "px";
+  const px = parseInt(maskEl.value, 10);
+  mask.style.width = px + "px";
+  mask.style.height = px + "px";
+  maskVal.textContent = px + "px";
 }
 maskEl.addEventListener("input", applyMask);
 applyMask();
@@ -472,10 +520,10 @@ applyMask();
 document.getElementById("newTiles").onclick = updateMapForCurrent;
 document.getElementById("restart").onclick = restart;
 document.getElementById("skip").onclick = () => {
-if (locked) return;
-idx++;
-if (idx >= questions.length) { alert(`Ferdig! Poeng: ${score} / ${questions.length}`); restart(); }
-else render();
+  if (locked) return;
+  idx++;
+  if (idx >= questions.length) { alert(`Ferdig! Poeng: ${score} / ${questions.length}`); restart(); }
+  else render();
 };
 
 // Initial
