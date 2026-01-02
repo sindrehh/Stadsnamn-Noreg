@@ -453,7 +453,7 @@ function latLonToWorldPx(lat, lon, z){
 
   const latClamped = clamp(lat, -85.05112878, 85.05112878);
   const rad = latClamped * Math.PI / 180;
-  const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / Math.PI / 2 * n * TILE_SIZE;
+  const y = (1 - Math.log(Math.tan(rad) + 1/Math.cos(rad)) / Math.PI) / 2 * n * TILE_SIZE;
 
   return { x, y, n };
 }
@@ -718,3 +718,4 @@ restart();
 </script>
 </body>
 </html>
+
