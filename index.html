@@ -16,33 +16,46 @@ h1 { margin: 0 0 8px; font-size: 22px; }
 .pill { padding: 6px 10px; border-radius: 999px; background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.18); }
 
 .mapWrap { display:flex; flex-direction: column; gap:10px; }
-.map {
-position: relative;
-width: 100%;
-aspect-ratio: 16/9;
-border-radius: 16px;
-overflow: hidden;
-border: 1px solid rgba(148,163,184,.2);
-background: #0a1020;
+.map{
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(148,163,184,.2);
+  background: #0a1020;
 }
+
+/* to synkroniserte tile-lag */
 .tiles { position:absolute; inset:0; transform-origin: 0 0; }
 .tile { position:absolute; width: 256px; height: 256px; user-select:none; -webkit-user-drag:none; }
-.mask {
-position:absolute; left:50%; top:50%;
-transform: translate(-50%,-50%);
-width: 72px; height: 72px;
-border-radius: 999px;
-background: rgba(2,6,23,.92);
-border: 1px solid rgba(2,6,23,.92);
-box-shadow: 0 10px 30px rgba(0,0,0,.35);
-pointer-events:none;
+
+#tilesLabels{
+  pointer-events:none;
+  opacity: 0;
+  transition: opacity 220ms ease;
 }
-.attrib {
-position:absolute; left:10px; bottom:8px;
-font-size: 11px; opacity:.75;
-background: rgba(2,6,23,.55);
-border: 1px solid rgba(148,163,184,.18);
-padding: 4px 8px; border-radius: 999px;
+/* når du har svart, vis labels */
+.map.reveal #tilesLabels{ opacity: 1; }
+
+/* valfri "fokus-ring" (ikkje for å skjule tekst lenger) */
+.mask{
+  position:absolute; left:50%; top:50%;
+  transform: translate(-50%,-50%);
+  width: 72px; height: 72px;
+  border-radius: 999px;
+  background: rgba(2,6,23,.0);
+  border: 2px solid rgba(226,232,240,.45);
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  pointer-events:none;
+}
+
+.attrib{
+  position:absolute; left:10px; bottom:8px;
+  font-size: 11px; opacity:.78;
+  background: rgba(2,6,23,.55);
+  border: 1px solid rgba(148,163,184,.18);
+  padding: 4px 8px; border-radius: 999px;
 }
 
 .controls { display:flex; gap:12px; flex-wrap: wrap; font-size: 13px; align-items:center; }
@@ -50,16 +63,16 @@ padding: 4px 8px; border-radius: 999px;
 input[type="range"] { width: 160px; }
 
 .opts { display: grid; gap: 10px; margin-top: 10px; }
-button.opt {
-width: 100%;
-text-align:left;
-padding: 10px 12px;
-border-radius: 14px;
-background: rgba(30,41,59,.75);
-border: 1px solid rgba(148,163,184,.22);
-color: #e5e7eb;
-font-size: 14px;
-cursor: pointer;
+button.opt{
+  width: 100%;
+  text-align:left;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(30,41,59,.75);
+  border: 1px solid rgba(148,163,184,.22);
+  color: #e5e7eb;
+  font-size: 14px;
+  cursor: pointer;
 }
 button.opt:hover { background: rgba(51,65,85,.85); }
 button.opt[disabled] { cursor: default; opacity: .85; }
@@ -68,14 +81,14 @@ button.opt[disabled] { cursor: default; opacity: .85; }
 .muted { opacity:.7; }
 
 .actions { display:flex; gap:10px; flex-wrap: wrap; margin-top: 12px; }
-.btn {
-padding: 10px 12px;
-border-radius: 12px;
-border: 1px solid rgba(148,163,184,.22);
-background: rgba(226,232,240,.92);
-color:#0b1220;
-font-weight: 700;
-cursor:pointer;
+.btn{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(226,232,240,.92);
+  color:#0b1220;
+  font-weight: 700;
+  cursor:pointer;
 }
 .btn2 { background: transparent; color:#e5e7eb; font-weight:600; }
 .btn[disabled] { opacity: .65; cursor: default; }
@@ -84,7 +97,7 @@ cursor:pointer;
 a { color:#c7d2fe; }
 
 /* Funfact-boks (visast etter svar) */
-.factBox {
+.factBox{
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 14px;
@@ -112,11 +125,16 @@ a { color:#c7d2fe; }
 
   <div class="row">
     <div class="card mapWrap">
-      <div class="map" aria-label="Kartutsnitt">
-        <div class="tiles" id="tiles"></div>
+      <div class="map" id="map" aria-label="Kartutsnitt">
+        <div class="tiles" id="tilesBase"></div>
+        <div class="tiles" id="tilesLabels"></div>
+
+        <!-- valfri fokus-ring -->
         <div class="mask" id="mask"></div>
+
         <div class="attrib">
           Kart: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>
+          · Basemap: <a href="https://carto.com/" target="_blank" rel="noreferrer">CARTO</a>
         </div>
       </div>
 
@@ -125,15 +143,18 @@ a { color:#c7d2fe; }
           <input id="zoom" type="range" min="6" max="12" step="1" value="9">
           <span id="zoomVal">9</span>
         </label>
-        <label>Mask
+
+        <!-- dette styrer berre fokus-ring no -->
+        <label>Fokus
           <input id="maskSize" type="range" min="28" max="140" step="2" value="88">
           <span id="maskVal">88px</span>
         </label>
+
         <button class="btn btn2" id="newTiles">Oppdater kart</button>
       </div>
 
       <div class="note">
-        NB: Ekte OSM-kartfliser (treng internett). Om du ser tomme ruter: vent litt eller trykk “Oppdater kart”.
+        NB: Kartfliser krev internett. Labels er <b>skjult</b> til du svarar – då dukkar dei opp.
       </div>
     </div>
 
@@ -154,7 +175,7 @@ a { color:#c7d2fe; }
       </div>
 
       <div class="note">
-        Tips: Zoom ned for lettare, zoom opp for vanskelegare. Mask kan justerast om labels “stikk ut”.
+        Tips: Zoom ned for lettare, zoom opp for vanskelegare.
       </div>
     </div>
   </div>
@@ -163,9 +184,15 @@ a { color:#c7d2fe; }
 <script>
 const QUESTIONS_PER_ROUND = 30;
 
-// OSM Standard tiles
-const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const TILE_SIZE = 256;
+
+// CARTO basemaps: utan labels (dark_nolabels) + med labels (dark_all)
+const SUBS = ["a","b","c","d"];
+const pickSub = () => SUBS[Math.floor(Math.random()*SUBS.length)];
+function cartoTileUrl(style, sub, z, x, y){
+  // style: "dark_nolabels" | "dark_all" (du kan bytte til "positron_nolabels"/"positron" om du vil ha lys stil)
+  return `https://cartodb-basemaps-${sub}.global.ssl.fastly.net/${style}/${z}/${x}/${y}.png`;
+}
 
 // Små/mellomstore stader med ca-koordinatar.
 const PLACES = [
@@ -377,7 +404,7 @@ const PLACES = [
   { name:"Åmli", fylke:"Agder", lat:58.7670, lon:8.4930 },
   { name:"Søgne", fylke:"Agder", lat:58.0930, lon:7.8070 },
   { name:"Tonstad", fylke:"Agder", lat:58.6620, lon:6.7150 },
-  
+
   // Innlandet
   { name:"Otta", fylke:"Innlandet",lat:61.7716, lon:9.5376 },
   { name:"Fagernes", fylke:"Innlandet",lat:60.9854, lon:9.2320,
@@ -455,11 +482,15 @@ function latLonToWorldPx(lat, lon, z){
   return { x, y, n };
 }
 
-function renderTilesPrecise(lat, lon, z){
-  const tilesEl = document.getElementById("tiles");
+/**
+ * Render eitt tile-lag inn i containerId med tileUrlFn.
+ * (Same matte som før, så zoom/oppsett blir identisk.)
+ */
+function renderTilesInto(containerId, lat, lon, z, tileUrlFn){
+  const tilesEl = document.getElementById(containerId);
   tilesEl.innerHTML = "";
 
-  const mapEl = tilesEl.parentElement;
+  const mapEl = tilesEl.parentElement;      // .map
   const rect = mapEl.getBoundingClientRect();
 
   const cols = 5, rows = 4;
@@ -504,12 +535,26 @@ function renderTilesPrecise(lat, lon, z){
       img.alt = "";
       img.loading = "eager";
       img.decoding = "async";
-      img.src = TILE_URL(z, x, y);
+      img.src = tileUrlFn(z, x, y);
       img.style.left = (c * TILE_SIZE) + "px";
       img.style.top = (r * TILE_SIZE) + "px";
       tilesEl.appendChild(img);
     }
   }
+}
+
+/**
+ * Render begge lag (utan labels + med labels) med SAME zoom, SAME transform.
+ * Viktig: vi vel same subdomain for begge laga i denne render-køyringa.
+ */
+function renderTilesPrecise(lat, lon, z){
+  const sub = pickSub();
+
+  const baseFn   = (zz, xx, yy) => cartoTileUrl("dark_nolabels", sub, zz, xx, yy);
+  const labelsFn = (zz, xx, yy) => cartoTileUrl("dark_all",      sub, zz, xx, yy);
+
+  renderTilesInto("tilesBase",   lat, lon, z, baseFn);
+  renderTilesInto("tilesLabels", lat, lon, z, labelsFn);
 }
 
 // ---------- Nærområde (avstand) ----------
@@ -596,6 +641,11 @@ function showFactForCorrect(q){
   factEl.style.display = "block";
 }
 
+function revealLabels(on){
+  const mapEl = document.getElementById("map");
+  mapEl.classList.toggle("reveal", !!on);
+}
+
 function goNext(){
   idx++;
   if (idx >= questions.length){
@@ -616,6 +666,9 @@ function render(){
   optsEl.innerHTML = "";
   locked = false;
   hideFact();
+
+  // Labels skal vere skjult før svar
+  revealLabels(false);
 
   // "Neste" skal ikkje kunne trykkast før du har svart
   document.getElementById("next").disabled = true;
@@ -647,8 +700,11 @@ function pick(opt){
 
   if (opt === q.correct) score++;
 
-  // Vis alltid fact for riktig svar (uavhengig av rett/feil)
+  // Vis alltid fact for riktig svar
   showFactForCorrect(q);
+
+  // REVEAL: labels dukkar opp på kartet etter svar
+  revealLabels(true);
 
   // IKKJE auto-vidare; la brukaren trykke Neste
   document.getElementById("next").disabled = false;
@@ -667,6 +723,7 @@ const zoomVal = document.getElementById("zoomVal");
 zoomEl.addEventListener("input", () => zoomVal.textContent = zoomEl.value);
 zoomEl.addEventListener("change", updateMapForCurrent);
 
+// Fokus-ring (valfri)
 const maskEl = document.getElementById("maskSize");
 const maskVal = document.getElementById("maskVal");
 const mask = document.getElementById("mask");
@@ -695,7 +752,7 @@ document.getElementById("next").onclick = () => {
   goNext();
 };
 
-// (Valfritt) Enter for Neste etter svar
+// Enter for Neste etter svar
 document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && locked && !document.getElementById("next").disabled) {
     document.getElementById("next").click();
@@ -707,6 +764,3 @@ restart();
 </script>
 </body>
 </html>
-
-
-
