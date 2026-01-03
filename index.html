@@ -16,8 +16,9 @@ h1 { margin: 0 0 8px; font-size: 22px; }
 .pill { padding: 6px 10px; border-radius: 999px; background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.18); }
 
 .mapWrap { display:flex; flex-direction: column; gap:10px; }
-.map{
+.map {
   --maskSize: 88px;
+
   position: relative;
   width: 100%;
   aspect-ratio: 16/9;
@@ -27,38 +28,45 @@ h1 { margin: 0 0 8px; font-size: 22px; }
   background: #0a1020;
 }
 
-/* to synkroniserte tile-lag */
+/* tiles */
 .tiles { position:absolute; inset:0; transform-origin: 0 0; }
 .tile { position:absolute; width: 256px; height: 256px; user-select:none; -webkit-user-drag:none; }
 
-/* Overlay (utan labels) – berre inni sirkelen */
-.clipCircle{
+/* stacking */
+#tilesBase { z-index: 1; }
+
+/* Wrapper som klipper overlay i sirkel (IKKJE tiles-diven som blir transformert) */
+.clipLayer{
+  position:absolute; inset:0;
+  z-index: 2;
   pointer-events:none;
+
   clip-path: circle(calc(var(--maskSize) / 2) at 50% 50%);
   -webkit-clip-path: circle(calc(var(--maskSize) / 2) at 50% 50%);
+
   opacity: 1;
   transition: opacity 220ms ease;
 }
 
-/* Når du har svart: slå overlay av => labels inni sirkelen kjem fram */
-.map.reveal .clipCircle{
-  opacity: 0;
-}
+/* Etter svar: fjern overlay => labels inni sirkelen kjem fram */
+.map.reveal .clipLayer { opacity: 0; }
 
-/* Maska er no berre ein ring (ikkje ein blackout) */
-.mask{
+/* Ring (berre UI) */
+.mask {
+  z-index: 3;
   position:absolute; left:50%; top:50%;
   transform: translate(-50%,-50%);
   width: var(--maskSize);
   height: var(--maskSize);
   border-radius: 999px;
-  background: rgba(2,6,23,0);
+  background: rgba(0,0,0,0);
   border: 2px solid rgba(226,232,240,.65);
   box-shadow: 0 10px 30px rgba(0,0,0,.25);
   pointer-events:none;
 }
 
 .attrib {
+  z-index: 4;
   position:absolute; left:10px; bottom:8px;
   font-size: 11px; opacity:.78;
   background: rgba(2,6,23,.55);
@@ -136,10 +144,13 @@ button.opt[disabled] { cursor: default; opacity: .85; }
       <div class="map" id="map" aria-label="Kartutsnitt">
         <!-- Base: lyst kart MED labels -->
         <div class="tiles" id="tilesBase"></div>
-        <!-- Overlay: lyst kart UTAN labels, klipt til sirkel -->
-        <div class="tiles clipCircle" id="tilesClip"></div>
 
-        <!-- Ring i senter -->
+        <!-- Overlay: lyst kart UTAN labels, klipt til sirkel via wrapper -->
+        <div class="clipLayer" id="clipLayer">
+          <div class="tiles" id="tilesClip"></div>
+        </div>
+
+        <!-- Ring i senter (berre UI) -->
         <div class="mask" id="mask"></div>
 
         <div class="attrib">
@@ -160,7 +171,7 @@ button.opt[disabled] { cursor: default; opacity: .85; }
       </div>
 
       <div class="note">
-        Labels er synlege som referansar – men <b>inni sirkelen</b> er labels skjult til du svarar.
+        Labels rundt er synlege som referansar – men <b>inni sirkelen</b> er labels skjult til du svarar.
       </div>
     </div>
 
@@ -171,6 +182,7 @@ button.opt[disabled] { cursor: default; opacity: .85; }
       </div>
       <div class="opts" id="opts"></div>
 
+      <!-- Funfact (visast etter svar) -->
       <div id="factBox" class="factBox" style="display:none;"></div>
 
       <div class="actions">
@@ -189,10 +201,8 @@ button.opt[disabled] { cursor: default; opacity: .85; }
 <script>
 const QUESTIONS_PER_ROUND = 30;
 
-// Tile config
+// CARTO Positron (lys): med labels + utan labels
 const TILE_SIZE = 256;
-
-// Lyst kart (CARTO Positron): med labels + utan labels
 const SUBS = ["a","b","c","d"];
 const pickSub = () => SUBS[Math.floor(Math.random()*SUBS.length)];
 
@@ -204,185 +214,185 @@ const TILE_URL_NOLABELS = (sub, z, x, y) =>
 
 // Små/mellomstore stader med ca-koordinatar.
 const PLACES = [
-  // Finnmark
-  { name:"Kirkenes", fylke:"Finnmark", lat:69.7271, lon:30.0458,
-    fact:"Byen voks fram rundt gruvedrift og var sterkt bomba under andre verdskrigen." },
-  { name:"Lakselv", fylke:"Finnmark", lat:70.0516, lon:24.9731,
-    fact:"Knutepunkt i indre Finnmark og nær Porsangerfjorden." },
-  { name:"Vadsø", fylke:"Finnmark", lat:70.0735, lon:29.7494,
-    fact:"Fylkeshovudstad i Finnmark og kjend for kvensk historie." },
-  { name:"Vardø", fylke:"Finnmark", lat:70.3705, lon:31.1107,
-    fact:"Heim til Vardøhus festning, Noregs nordlegaste militære anlegg." },
-  { name:"Honningsvåg",fylke:"Finnmark", lat:70.9821, lon:25.9704,
-    fact:"Ein viktig hamn og stoppestad for Hurtigruten på veg mot Nordkapp." },
-  { name:"Karasjok", fylke:"Finnmark", lat:69.4719, lon:25.5110,
-    fact:"Politisk og kulturelt sentrum for samisk kultur i Noreg." },
-  { name:"Kjøllefjord", fylke:"Finnmark", lat:70.9452, lon:27.3507,
-    fact:"Fiskerihamn på Nordkinnhalvøya med lang kysttradisjon." },
-  { name:"Mehamn", fylke:"Finnmark", lat:71.0340, lon:27.8513,
-    fact:"Nordleg fiskevær med flyplass og sterk fiskerinæring." },
-  { name:"Båtsfjord", fylke:"Finnmark", lat:70.6340, lon:29.7174,
-    fact:"Eit av dei viktigaste fiskehamnene i Aust-Finnmark." },
-  { name:"Tana bru", fylke:"Finnmark", lat:70.1994, lon:28.1903,
-    fact:"Liggjande ved Tanaelva, ei av Europas beste lakseelver." },
-  { name:"Berlevåg", fylke:"Finnmark", lat:70.8574, lon:29.0866,
-    fact:"Kjent frå dokumentar om moloarbeid i ekstremt vêr." },
-  { name:"Kautokeino", fylke:"Finnmark", lat:69.0120, lon:23.0417,
-    fact:"Kjent for påskeopprøret i 1852 og sterk samisk identitet." },
-  { name:"Gamvik", fylke:"Finnmark", lat:71.0419, lon:27.8518,
-    fact:"Noregs nordlegaste kommune på fastlandet." },
-  { name:"Bugøynes", fylke:"Finnmark", lat:69.9608, lon:29.9758,
-    fact:"Kjent som Lille-Finland på grunn av finsk busetnad." },
-  { name:"Alta", fylke:"Finnmark", lat:69.9689, lon:23.2717,
-    fact:"Kjent for helleristningane som står på UNESCO si verdsarvliste." },
-  { name:"Hammerfest", fylke:"Finnmark", lat:70.6634, lon:23.6821,
-    fact:"Ein av verdas nordlegaste byar og tidleg sentrum for ishavsfangst." },
-  { name:"Havøysund", fylke:"Finnmark", lat:70.9980, lon:24.6620,
-    fact:"Kyststad på Magerøya med sterke fiskeritradisjonar." },
-  { name:"Hasvik", fylke:"Finnmark", lat:70.5920, lon:22.3020,
-    fact:"Øysamfunn på Sørøya med fiske som hovudnæring." },
+ // Finnmark
+{ name:"Kirkenes", fylke:"Finnmark", lat:69.7271, lon:30.0458,
+  fact:"Byen voks fram rundt gruvedrift og var sterkt bomba under andre verdskrigen." },
+{ name:"Lakselv", fylke:"Finnmark", lat:70.0516, lon:24.9731,
+  fact:"Knutepunkt i indre Finnmark og nær Porsangerfjorden." },
+{ name:"Vadsø", fylke:"Finnmark", lat:70.0735, lon:29.7494,
+  fact:"Fylkeshovudstad i Finnmark og kjend for kvensk historie." },
+{ name:"Vardø", fylke:"Finnmark", lat:70.3705, lon:31.1107,
+  fact:"Heim til Vardøhus festning, Noregs nordlegaste militære anlegg." },
+{ name:"Honningsvåg",fylke:"Finnmark", lat:70.9821, lon:25.9704,
+  fact:"Ein viktig hamn og stoppestad for Hurtigruten på veg mot Nordkapp." },
+{ name:"Karasjok", fylke:"Finnmark", lat:69.4719, lon:25.5110,
+  fact:"Politisk og kulturelt sentrum for samisk kultur i Noreg." },
+{ name:"Kjøllefjord", fylke:"Finnmark", lat:70.9452, lon:27.3507,
+  fact:"Fiskerihamn på Nordkinnhalvøya med lang kysttradisjon." },
+{ name:"Mehamn", fylke:"Finnmark", lat:71.0340, lon:27.8513,
+  fact:"Nordleg fiskevær med flyplass og sterk fiskerinæring." },
+{ name:"Båtsfjord", fylke:"Finnmark", lat:70.6340, lon:29.7174,
+  fact:"Eit av dei viktigaste fiskehamnene i Aust-Finnmark." },
+{ name:"Tana bru", fylke:"Finnmark", lat:70.1994, lon:28.1903,
+  fact:"Liggjande ved Tanaelva, ei av Europas beste lakseelver." },
+{ name:"Berlevåg", fylke:"Finnmark", lat:70.8574, lon:29.0866,
+  fact:"Kjent frå dokumentar om moloarbeid i ekstremt vêr." },
+{ name:"Kautokeino", fylke:"Finnmark", lat:69.0120, lon:23.0417,
+  fact:"Kjent for påskeopprøret i 1852 og sterk samisk identitet." },
+{ name:"Gamvik", fylke:"Finnmark", lat:71.0419, lon:27.8518,
+  fact:"Noregs nordlegaste kommune på fastlandet." },
+{ name:"Bugøynes", fylke:"Finnmark", lat:69.9608, lon:29.9758,
+  fact:"Kjent som Lille-Finland på grunn av finsk busetnad." },
+{ name:"Alta", fylke:"Finnmark", lat:69.9689, lon:23.2717,
+  fact:"Kjent for helleristningane som står på UNESCO si verdsarvliste." },
+{ name:"Hammerfest", fylke:"Finnmark", lat:70.6634, lon:23.6821,
+  fact:"Ein av verdas nordlegaste byar og tidleg sentrum for ishavsfangst." },
+{ name:"Havøysund", fylke:"Finnmark", lat:70.9980, lon:24.6620,
+  fact:"Kyststad på Magerøya med sterke fiskeritradisjonar." },
+{ name:"Hasvik", fylke:"Finnmark", lat:70.5920, lon:22.3020,
+  fact:"Øysamfunn på Sørøya med fiske som hovudnæring." },
 
-  // Troms
-  { name:"Finnsnes", fylke:"Troms", lat:69.2307, lon:18.0084,
-    fact:"By som fungerer som inngangsport til Senja." },
-  { name:"Setermoen", fylke:"Troms", lat:68.8561, lon:18.3481,
-    fact:"Militært sentrum med ein av Hærens største leirar." },
-  { name:"Bardufoss", fylke:"Troms", lat:69.0558, lon:18.5365,
-    fact:"Kjent for flyplass og militær luftbase." },
-  { name:"Sjøvegan", fylke:"Troms", lat:68.8756, lon:17.8523,
-    fact:"Administrasjonssenter i Salangen kommune." },
-  { name:"Skjervøy", fylke:"Troms", lat:70.0286, lon:20.9713,
-    fact:"Øysamfunn med viktige fiskeri og hurtigruteanløp." },
-  { name:"Hansnes", fylke:"Troms", lat:69.9686, lon:19.6230,
-    fact:"Kommunesenter i Karlsøy med ferjesamband." },
-  { name:"Storslett", fylke:"Troms", lat:69.7707, lon:21.0261,
-    fact:"Administrasjonssenter i Nordreisa." },
-  { name:"Lyngseidet", fylke:"Troms", lat:69.5767, lon:20.2185,
-    fact:"Ligg ved Lyngenfjorden omgitt av alpine fjell." },
-  { name:"Botnhamn", fylke:"Troms", lat:69.5142, lon:17.8991,
-    fact:"Ferjeknutepunkt mellom Senja og fastlandet." },
-  { name:"Burfjord", fylke:"Troms", lat:69.9426, lon:21.2131,
-    fact:"Kommunesenter i Kvænangen med kyst- og fjellnatur." },
-  { name:"Moen", fylke:"Troms", lat:69.1300, lon:18.6100,
-    fact:"Tettstad i Målselv nær Bardufoss." },
-  { name:"Sørkjosen", fylke:"Troms", lat:69.7867, lon:20.9597,
-    fact:"Bygd med flyplass og nærleik til Reisafjorden." },
-  { name:"Botnhamn (Senja)", fylke:"Troms", lat:69.5142, lon:17.8991,
-    fact:"Viktig ferjehamn på Senja." },
-  { name:"Skibotn", fylke:"Troms", lat:69.4030, lon:20.2660,
-    fact:"Kjent for stabilt innlandsklima og nordlysobservasjon." },
-  { name:"Nordkjosbotn", fylke:"Troms", lat:69.2170, lon:19.5580,
-    fact:"Viktig vegknutepunkt i Balsfjord." },
-  { name:"Tennevoll", fylke:"Troms", lat:68.8740, lon:17.8020,
-    fact:"Lite kommunesenter i Lavangen ved fjord og fjell." },
-  { name:"Hamn i Senja", fylke:"Troms", lat:69.3030, lon:17.1250,
-    fact:"Kjent for dramatisk kystnatur ytterst mot Norskehavet." },
+// Troms
+{ name:"Finnsnes", fylke:"Troms", lat:69.2307, lon:18.0084,
+  fact:"By som fungerer som inngangsport til Senja." },
+{ name:"Setermoen", fylke:"Troms", lat:68.8561, lon:18.3481,
+  fact:"Militært sentrum med ein av Hærens største leirar." },
+{ name:"Bardufoss", fylke:"Troms", lat:69.0558, lon:18.5365,
+  fact:"Kjent for flyplass og militær luftbase." },
+{ name:"Sjøvegan", fylke:"Troms", lat:68.8756, lon:17.8523,
+  fact:"Administrasjonssenter i Salangen kommune." },
+{ name:"Skjervøy", fylke:"Troms", lat:70.0286, lon:20.9713,
+  fact:"Øysamfunn med viktige fiskeri og hurtigruteanløp." },
+{ name:"Hansnes", fylke:"Troms", lat:69.9686, lon:19.6230,
+  fact:"Kommunesenter i Karlsøy med ferjesamband." },
+{ name:"Storslett", fylke:"Troms", lat:69.7707, lon:21.0261,
+  fact:"Administrasjonssenter i Nordreisa." },
+{ name:"Lyngseidet", fylke:"Troms", lat:69.5767, lon:20.2185,
+  fact:"Ligg ved Lyngenfjorden omgitt av alpine fjell." },
+{ name:"Botnhamn", fylke:"Troms", lat:69.5142, lon:17.8991,
+  fact:"Ferjeknutepunkt mellom Senja og fastlandet." },
+{ name:"Burfjord", fylke:"Troms", lat:69.9426, lon:21.2131,
+  fact:"Kommunesenter i Kvænangen med kyst- og fjellnatur." },
+{ name:"Moen", fylke:"Troms", lat:69.1300, lon:18.6100,
+  fact:"Tettstad i Målselv nær Bardufoss." },
+{ name:"Sørkjosen", fylke:"Troms", lat:69.7867, lon:20.9597,
+  fact:"Bygd med flyplass og nærleik til Reisafjorden." },
+{ name:"Botnhamn (Senja)", fylke:"Troms", lat:69.5142, lon:17.8991,
+  fact:"Viktig ferjehamn på Senja." },
+{ name:"Skibotn", fylke:"Troms", lat:69.4030, lon:20.2660,
+  fact:"Kjent for stabilt innlandsklima og nordlysobservasjon." },
+{ name:"Nordkjosbotn", fylke:"Troms", lat:69.2170, lon:19.5580,
+  fact:"Viktig vegknutepunkt i Balsfjord." },
+{ name:"Tennevoll", fylke:"Troms", lat:68.8740, lon:17.8020,
+  fact:"Lite kommunesenter i Lavangen ved fjord og fjell." },
+{ name:"Hamn i Senja", fylke:"Troms", lat:69.3030, lon:17.1250,
+  fact:"Kjent for dramatisk kystnatur ytterst mot Norskehavet." },
 
-  // Nordland
-  { name:"Fauske", fylke:"Nordland", lat:67.2591, lon:15.3917,
-    fact:"Knutepunkt for jernbane og vegtrafikk i Salten." },
-  { name:"Rognan", fylke:"Nordland", lat:67.1008, lon:15.3906,
-    fact:"Tidlegare handelsstad ved Skjerstadfjorden." },
-  { name:"Leknes", fylke:"Nordland", lat:68.1475, lon:13.6119,
-    fact:"Regionsenter i Lofoten." },
-  { name:"Svolvær", fylke:"Nordland", lat:68.2341, lon:14.5683,
-    fact:"Byen er kjend for Svolværgeita, eit markant fjell med lang klatrehistorie." },
-  { name:"Andenes", fylke:"Nordland", lat:69.3143, lon:16.1194,
-    fact:"Har vore sentrum for norsk rakett- og atmosfæreforsking sidan 1960-talet." },
-  { name:"Ballangen", fylke:"Nordland", lat:68.3426, lon:16.8316,
-    fact:"Tidlegare gruve- og industristad i Ofoten." },
-  { name:"Drag", fylke:"Nordland", lat:68.0812, lon:15.6027,
-    fact:"Kjent for samisk kultur og ferjesamband over Tysfjorden." },
-  { name:"Reine", fylke:"Nordland", lat:67.9327, lon:13.0892,
-    fact:"Eit tradisjonelt fiskevær omgitt av bratte fjell og smale sund." },
-  { name:"Inndyr", fylke:"Nordland", lat:67.0335, lon:14.0286,
-    fact:"Administrasjonssenter i Gildeskål kommune." },
-  { name:"Hemnesberget", fylke:"Nordland", lat:66.2205, lon:13.6212,
-    fact:"Historisk handelsstad ved Ranfjorden." },
-  { name:"Hamarøyhamn", fylke:"Nordland", lat:68.0810, lon:15.7790,
-    fact:"Kommunesenter i Hamarøy, knytt til Knut Hamsun." },
-  { name:"Myre", fylke:"Nordland", lat:68.9156, lon:15.0935,
-    fact:"Viktig fiskeristad i Vesterålen." },
-  { name:"Reipå", fylke:"Nordland", lat:66.8218, lon:13.5708,
-    fact:"Lite tettstad i Meløy med landbruk og industri." },
-  { name:"Brønnøysund", fylke:"Nordland", lat:65.4740, lon:12.2130,
-    fact:"Kjent for Torghatten med holet tvers gjennom fjellet." },
-  { name:"Mosjøen", fylke:"Nordland", lat:65.8350, lon:13.1900,
-    fact:"Småby på Helgeland med den verna trehusgata Sjøgata." },
-  { name:"Røst", fylke:"Nordland", lat:67.5170, lon:12.1030,
-    fact:"Øykommune langt ute i havet kjend for tørrfisk." },
-  { name:"Kabelvåg", fylke:"Nordland", lat:68.2090, lon:14.4810,
-    fact:"Historisk sentrum i Lofoten med Lofotkatedralen." },
+// Nordland
+{ name:"Fauske", fylke:"Nordland", lat:67.2591, lon:15.3917,
+  fact:"Knutepunkt for jernbane og vegtrafikk i Salten." },
+{ name:"Rognan", fylke:"Nordland", lat:67.1008, lon:15.3906,
+  fact:"Tidlegare handelsstad ved Skjerstadfjorden." },
+{ name:"Leknes", fylke:"Nordland", lat:68.1475, lon:13.6119,
+  fact:"Regionsenter i Lofoten." },
+{ name:"Svolvær", fylke:"Nordland", lat:68.2341, lon:14.5683,
+  fact:"Byen er kjend for Svolværgeita, eit markant fjell med lang klatrehistorie." },
+{ name:"Andenes", fylke:"Nordland", lat:69.3143, lon:16.1194,
+  fact:"Har vore sentrum for norsk rakett- og atmosfæreforsking sidan 1960-talet." },
+{ name:"Ballangen", fylke:"Nordland", lat:68.3426, lon:16.8316,
+  fact:"Tidlegare gruve- og industristad i Ofoten." },
+{ name:"Drag", fylke:"Nordland", lat:68.0812, lon:15.6027,
+  fact:"Kjent for samisk kultur og ferjesamband over Tysfjorden." },
+{ name:"Reine", fylke:"Nordland", lat:67.9327, lon:13.0892,
+  fact:"Eit tradisjonelt fiskevær omgitt av bratte fjell og smale sund." },
+{ name:"Inndyr", fylke:"Nordland", lat:67.0335, lon:14.0286,
+  fact:"Administrasjonssenter i Gildeskål kommune." },
+{ name:"Hemnesberget", fylke:"Nordland", lat:66.2205, lon:13.6212,
+  fact:"Historisk handelsstad ved Ranfjorden." },
+{ name:"Hamarøyhamn", fylke:"Nordland", lat:68.0810, lon:15.7790,
+  fact:"Kommunesenter i Hamarøy, knytt til Knut Hamsun." },
+{ name:"Myre", fylke:"Nordland", lat:68.9156, lon:15.0935,
+  fact:"Viktig fiskeristad i Vesterålen." },
+{ name:"Reipå", fylke:"Nordland", lat:66.8218, lon:13.5708,
+  fact:"Lite tettstad i Meløy med landbruk og industri." },
+{ name:"Brønnøysund", fylke:"Nordland", lat:65.4740, lon:12.2130,
+  fact:"Kjent for Torghatten med holet tvers gjennom fjellet." },
+{ name:"Mosjøen", fylke:"Nordland", lat:65.8350, lon:13.1900,
+  fact:"Småby på Helgeland med den verna trehusgata Sjøgata." },
+{ name:"Røst", fylke:"Nordland", lat:67.5170, lon:12.1030,
+  fact:"Øykommune langt ute i havet kjend for tørrfisk." },
+{ name:"Kabelvåg", fylke:"Nordland", lat:68.2090, lon:14.4810,
+  fact:"Historisk sentrum i Lofoten med Lofotkatedralen." },
 
-  // Trøndelag
-  { name:"Røros", fylke:"Trøndelag", lat:62.5747, lon:11.3841,
-    fact:"Ein av Europas best bevarte gruvebyar, bygd rundt koparutvinning." },
-  { name:"Oppdal", fylke:"Trøndelag", lat:62.5941, lon:9.6910,
-    fact:"Ligg ved Dovrefjell og er kjent for fjell, moskus og friluftsliv." },
-  { name:"Støren", fylke:"Trøndelag", lat:63.0484, lon:10.2811,
-    fact:"Administrasjonssenter i Midtre Gauldal." },
-  { name:"Brekstad", fylke:"Trøndelag", lat:63.7136, lon:9.6636,
-    fact:"By på Ørlandet nær hovudflybasen for Luftforsvaret." },
-  { name:"Å (Inderøy)", fylke:"Trøndelag", lat:63.9610, lon:11.3055,
-    fact:"Lita bygd i Inderøy med jordbruk og kulturtradisjonar." },
-  { name:"Rissa", fylke:"Trøndelag", lat:63.5834, lon:10.0063,
-    fact:"Tidlegare kommunesenter i Indre Fosen." },
-  { name:"Lensvik", fylke:"Trøndelag", lat:63.5179, lon:9.8153,
-    fact:"Kystbygd ved Trondheimsfjorden." },
-  { name:"Børsa", fylke:"Trøndelag", lat:63.1716, lon:10.2407,
-    fact:"Tettstad i Skaun kommune sør for Trondheim." },
-  { name:"Kyrksæterøra", fylke:"Trøndelag", lat:63.2896, lon:8.7357,
-    fact:"Administrasjonssenter i Heim kommune." },
-  { name:"Snåsa", fylke:"Trøndelag", lat:64.2450, lon:12.3770,
-    fact:"Kjent for samisk språk og tradisjonar." },
-  { name:"Åsen", fylke:"Trøndelag", lat:63.6170, lon:10.9390,
-    fact:"Tettstad i Levanger kommune." },
-  { name:"Rørvik", fylke:"Trøndelag", lat:64.8624, lon:11.2408,
-    fact:"Kystby der fiskeri og sjøtransport har prega utviklinga." },
-  { name:"Namsos", fylke:"Trøndelag", lat:64.4720, lon:11.5120,
-    fact:"By ved Namsen ofte kalla Rock City." },
-  { name:"Åfjord", fylke:"Trøndelag", lat:63.9610, lon:9.7260,
-    fact:"Kystkommune med øyar, hav og fiskeritradisjonar." },
-  { name:"Fillan", fylke:"Trøndelag", lat:63.6060, lon:8.9690,
-    fact:"Kommunesenter på Hitra med oppdrett og kystnæring." },
-  { name:"Tydal", fylke:"Trøndelag", lat:62.9140, lon:11.6670,
-    fact:"Fjellkommune mot Sverige med villmark og kraftutbygging." },
+// Trøndelag
+{ name:"Røros", fylke:"Trøndelag", lat:62.5747, lon:11.3841,
+  fact:"Ein av Europas best bevarte gruvebyar, bygd rundt koparutvinning." },
+{ name:"Oppdal", fylke:"Trøndelag", lat:62.5941, lon:9.6910,
+  fact:"Ligg ved Dovrefjell og er kjent for fjell, moskus og friluftsliv." },
+{ name:"Støren", fylke:"Trøndelag", lat:63.0484, lon:10.2811,
+  fact:"Administrasjonssenter i Midtre Gauldal." },
+{ name:"Brekstad", fylke:"Trøndelag", lat:63.7136, lon:9.6636,
+  fact:"By på Ørlandet nær hovudflybasen for Luftforsvaret." },
+{ name:"Å (Inderøy)", fylke:"Trøndelag", lat:63.9610, lon:11.3055,
+  fact:"Lita bygd i Inderøy med jordbruk og kulturtradisjonar." },
+{ name:"Rissa", fylke:"Trøndelag", lat:63.5834, lon:10.0063,
+  fact:"Tidlegare kommunesenter i Indre Fosen." },
+{ name:"Lensvik", fylke:"Trøndelag", lat:63.5179, lon:9.8153,
+  fact:"Kystbygd ved Trondheimsfjorden." },
+{ name:"Børsa", fylke:"Trøndelag", lat:63.1716, lon:10.2407,
+  fact:"Tettstad i Skaun kommune sør for Trondheim." },
+{ name:"Kyrksæterøra", fylke:"Trøndelag", lat:63.2896, lon:8.7357,
+  fact:"Administrasjonssenter i Heim kommune." },
+{ name:"Snåsa", fylke:"Trøndelag", lat:64.2450, lon:12.3770,
+  fact:"Kjent for samisk språk og tradisjonar." },
+{ name:"Åsen", fylke:"Trøndelag", lat:63.6170, lon:10.9390,
+  fact:"Tettstad i Levanger kommune." },
+{ name:"Rørvik", fylke:"Trøndelag", lat:64.8624, lon:11.2408,
+  fact:"Kystby der fiskeri og sjøtransport har prega utviklinga." },
+{ name:"Namsos", fylke:"Trøndelag", lat:64.4720, lon:11.5120,
+  fact:"By ved Namsen ofte kalla Rock City." },
+{ name:"Åfjord", fylke:"Trøndelag", lat:63.9610, lon:9.7260,
+  fact:"Kystkommune med øyar, hav og fiskeritradisjonar." },
+{ name:"Fillan", fylke:"Trøndelag", lat:63.6060, lon:8.9690,
+  fact:"Kommunesenter på Hitra med oppdrett og kystnæring." },
+{ name:"Tydal", fylke:"Trøndelag", lat:62.9140, lon:11.6670,
+  fact:"Fjellkommune mot Sverige med villmark og kraftutbygging." },
 
-  // Vestland
-  { name:"Odda", fylke:"Vestland", lat:60.0697, lon:6.5457,
-    fact:"Industristad i Hardanger og utgangspunkt for Trolltunga." },
-  { name:"Norheimsund", fylke:"Vestland", lat:60.3703, lon:6.1452,
-    fact:"Kjent for Steinsdalsfossen som kan passeras bak." },
-  { name:"Måløy", fylke:"Vestland", lat:61.9354, lon:5.1136,
-    fact:"Viktig fiskeriby i ytre Nordfjord." },
-  { name:"Rosendal", fylke:"Vestland", lat:59.9867, lon:6.0115,
-    fact:"Heim til Baroniet Rosendal, det einaste i Noreg." },
-  { name:"Aurland", fylke:"Vestland", lat:60.9056, lon:7.1876,
-    fact:"Ligg ved Aurlandsfjorden og nær verdsarvfjord." },
-  { name:"Flåm", fylke:"Vestland", lat:60.8623, lon:7.1148,
-    fact:"Kjent for Flåmsbana, ei spektakulær jernbanestrekning i bratt fjordlandskap." },
-  { name:"Vikøyri", fylke:"Vestland", lat:61.0873, lon:6.5787,
-    fact:"Administrasjonssenter i Vik kommune." },
-  { name:"Fitjar", fylke:"Vestland", lat:59.9190, lon:5.3171,
-    fact:"Historisk kjent for slaget ved Fitjar i år 961." },
-  { name:"Nordfjordeid", fylke:"Vestland", lat:61.9055, lon:6.0020,
-    fact:"Kjent for Sagastad vikingmuseum." },
-  { name:"Masfjordnes", fylke:"Vestland", lat:60.7990, lon:5.2910,
-    fact:"Administrasjonssenter i Masfjorden kommune." },
-  { name:"Lærdalsøyri", fylke:"Vestland", lat:61.1006, lon:7.4829,
-    fact:"Kjent for Gamle Lærdalsøyri med verna trehus." },
-  { name:"Skånevik", fylke:"Vestland", lat:59.9997, lon:5.7597,
-    fact:"Kjent for Skånevik Bluesfestival." },
-  { name:"Florø", fylke:"Vestland", lat:61.6000, lon:5.0320,
-    fact:"Vestland sitt vestlegaste bysamfunn." },
-  { name:"Gaupne", fylke:"Vestland", lat:61.4030, lon:7.2890,
-    fact:"Tettstad i Luster og porten til Jostedalsbreen." },
-  { name:"Solund", fylke:"Vestland", lat:61.0730, lon:4.8440,
-    fact:"Vestlegaste kommunen i Noreg med tusenvis av øyar." },
-  { name:"Fedje", fylke:"Vestland", lat:60.7660, lon:4.7300,
-    fact:"Lita øykommune ytterst i havgapet nord for Bergen." },
+// Vestland
+{ name:"Odda", fylke:"Vestland", lat:60.0697, lon:6.5457,
+  fact:"Industristad i Hardanger og utgangspunkt for Trolltunga." },
+{ name:"Norheimsund", fylke:"Vestland", lat:60.3703, lon:6.1452,
+  fact:"Kjent for Steinsdalsfossen som kan passeras bak." },
+{ name:"Måløy", fylke:"Vestland", lat:61.9354, lon:5.1136,
+  fact:"Viktig fiskeriby i ytre Nordfjord." },
+{ name:"Rosendal", fylke:"Vestland", lat:59.9867, lon:6.0115,
+  fact:"Heim til Baroniet Rosendal, det einaste i Noreg." },
+{ name:"Aurland", fylke:"Vestland", lat:60.9056, lon:7.1876,
+  fact:"Ligg ved Aurlandsfjorden og nær verdsarvfjord." },
+{ name:"Flåm", fylke:"Vestland", lat:60.8623, lon:7.1148,
+  fact:"Kjent for Flåmsbana, ei spektakulær jernbanestrekning i bratt fjordlandskap." },
+{ name:"Vikøyri", fylke:"Vestland", lat:61.0873, lon:6.5787,
+  fact:"Administrasjonssenter i Vik kommune." },
+{ name:"Fitjar", fylke:"Vestland", lat:59.9190, lon:5.3171,
+  fact:"Historisk kjent for slaget ved Fitjar i år 961." },
+{ name:"Nordfjordeid", fylke:"Vestland", lat:61.9055, lon:6.0020,
+  fact:"Kjent for Sagastad vikingmuseum." },
+{ name:"Masfjordnes", fylke:"Vestland", lat:60.7990, lon:5.2910,
+  fact:"Administrasjonssenter i Masfjorden kommune." },
+{ name:"Lærdalsøyri", fylke:"Vestland", lat:61.1006, lon:7.4829,
+  fact:"Kjent for Gamle Lærdalsøyri med verna trehus." },
+{ name:"Skånevik", fylke:"Vestland", lat:59.9997, lon:5.7597,
+  fact:"Kjent for Skånevik Bluesfestival." },
+{ name:"Florø", fylke:"Vestland", lat:61.6000, lon:5.0320,
+  fact:"Vestland sitt vestlegaste bysamfunn." },
+{ name:"Gaupne", fylke:"Vestland", lat:61.4030, lon:7.2890,
+  fact:"Tettstad i Luster og porten til Jostedalsbreen." },
+{ name:"Solund", fylke:"Vestland", lat:61.0730, lon:4.8440,
+  fact:"Vestlegaste kommunen i Noreg med tusenvis av øyar." },
+{ name:"Fedje", fylke:"Vestland", lat:60.7660, lon:4.7300,
+  fact:"Lita øykommune ytterst i havgapet nord for Bergen." },
 
-  // Rogaland
+// Rogaland
   { name:"Sauda", fylke:"Rogaland", lat:59.6509, lon:6.3541 },
   { name:"Jørpeland", fylke:"Rogaland", lat:58.9861, lon:6.0406 },
   { name:"Nærbø", fylke:"Rogaland", lat:58.6642, lon:5.6377 },
@@ -412,7 +422,7 @@ const PLACES = [
   { name:"Åmli", fylke:"Agder", lat:58.7670, lon:8.4930 },
   { name:"Søgne", fylke:"Agder", lat:58.0930, lon:7.8070 },
   { name:"Tonstad", fylke:"Agder", lat:58.6620, lon:6.7150 },
-
+  
   // Innlandet
   { name:"Otta", fylke:"Innlandet",lat:61.7716, lon:9.5376 },
   { name:"Fagernes", fylke:"Innlandet",lat:60.9854, lon:9.2320,
@@ -428,41 +438,41 @@ const PLACES = [
   { name:"Vestre Slidre", fylke:"Innlandet", lat:61.0860, lon:9.0780 },
   { name:"Rendalen", fylke:"Innlandet", lat:61.8910, lon:11.0720 },
 
-  // Viken
-  { name:"Årnes", fylke:"Viken", lat:60.1230, lon:11.4636,
-    fact:"Administrasjonssenter i Nes der Glomma møter Vorma." },
-  { name:"Mysen", fylke:"Viken", lat:59.5530, lon:11.3276,
-    fact:"Viktig handelssenter i Indre Østfold." },
-  { name:"Rakkestad", fylke:"Viken", lat:59.4257, lon:11.3392,
-    fact:"Kjent for landbruk og flyplass." },
-  { name:"Vikersund", fylke:"Viken", lat:59.9648, lon:9.9915,
-    fact:"Heim til verdas største hoppbakke." },
-  { name:"Røyken", fylke:"Viken", lat:59.7402, lon:10.4116,
-    fact:"Tidlegare kommune mellom Oslo og Drammen." },
-  { name:"Lierbyen", fylke:"Viken", lat:59.7856, lon:10.2456,
-    fact:"Administrasjonssenter i Lier kommune." },
-  { name:"Nesbyen", fylke:"Viken", lat:60.5695, lon:9.1020,
-    fact:"Administrasjonssenter i Hallingdal." },
-  { name:"Aurskog", fylke:"Viken", lat:59.9269, lon:11.5694,
-    fact:"Tidlegare kommunesenter i Aurskog-Høland." },
-  { name:"Rødberg", fylke:"Viken", lat:60.2660, lon:8.9450,
-    fact:"Administrasjonssenter i Nore og Uvdal." },
-  { name:"Aremark", fylke:"Viken", lat:59.2200, lon:11.6950,
-    fact:"Lita grensekommune prega av skog og vatn." },
-  { name:"Hol", fylke:"Viken", lat:60.6150, lon:8.3000,
-    fact:"Fjellkommune som omfattar Geilo." },
-  { name:"Son", fylke:"Viken", lat:59.5230, lon:10.6840,
-    fact:"Populær sommarstad ved Oslofjorden." },
-  { name:"Drøbak", fylke:"Viken", lat:59.6670, lon:10.6330,
-    fact:"Kjent for Oscarsborg festning som senka Blücher i 1940." },
-  { name:"Halden", fylke:"Viken", lat:59.1245, lon:11.3874,
-    fact:"Kjent for Fredriksten festning og grensehistorie." },
-  { name:"Hønefoss", fylke:"Viken", lat:60.1680, lon:10.2560,
-    fact:"By ved fossen i Randselva som har gitt namn til staden." },
-  { name:"Kongsberg", fylke:"Viken", lat:59.6680, lon:9.6500,
-    fact:"Tidlegare sølvgruveby med lang industrihistorie." },
-  { name:"Gol", fylke:"Viken", lat:60.7020, lon:8.9510,
-    fact:"Knutepunkt i Hallingdal langs riksveg 7." }
+// Viken
+{ name:"Årnes", fylke:"Viken", lat:60.1230, lon:11.4636,
+  fact:"Administrasjonssenter i Nes der Glomma møter Vorma." },
+{ name:"Mysen", fylke:"Viken", lat:59.5530, lon:11.3276,
+  fact:"Viktig handelssenter i Indre Østfold." },
+{ name:"Rakkestad", fylke:"Viken", lat:59.4257, lon:11.3392,
+  fact:"Kjent for landbruk og flyplass." },
+{ name:"Vikersund", fylke:"Viken", lat:59.9648, lon:9.9915,
+  fact:"Heim til verdas største hoppbakke." },
+{ name:"Røyken", fylke:"Viken", lat:59.7402, lon:10.4116,
+  fact:"Tidlegare kommune mellom Oslo og Drammen." },
+{ name:"Lierbyen", fylke:"Viken", lat:59.7856, lon:10.2456,
+  fact:"Administrasjonssenter i Lier kommune." },
+{ name:"Nesbyen", fylke:"Viken", lat:60.5695, lon:9.1020,
+  fact:"Administrasjonssenter i Hallingdal." },
+{ name:"Aurskog", fylke:"Viken", lat:59.9269, lon:11.5694,
+  fact:"Tidlegare kommunesenter i Aurskog-Høland." },
+{ name:"Rødberg", fylke:"Viken", lat:60.2660, lon:8.9450,
+  fact:"Administrasjonssenter i Nore og Uvdal." },
+{ name:"Aremark", fylke:"Viken", lat:59.2200, lon:11.6950,
+  fact:"Lita grensekommune prega av skog og vatn." },
+{ name:"Hol", fylke:"Viken", lat:60.6150, lon:8.3000,
+  fact:"Fjellkommune som omfattar Geilo." },
+{ name:"Son", fylke:"Viken", lat:59.5230, lon:10.6840,
+  fact:"Populær sommarstad ved Oslofjorden." },
+{ name:"Drøbak", fylke:"Viken", lat:59.6670, lon:10.6330,
+  fact:"Kjent for Oscarsborg festning som senka Blücher i 1940." },
+{ name:"Halden", fylke:"Viken", lat:59.1245, lon:11.3874,
+  fact:"Kjent for Fredriksten festning og grensehistorie." },
+{ name:"Hønefoss", fylke:"Viken", lat:60.1680, lon:10.2560,
+  fact:"By ved fossen i Randselva som har gitt namn til staden." },
+{ name:"Kongsberg", fylke:"Viken", lat:59.6680, lon:9.6500,
+  fact:"Tidlegare sølvgruveby med lang industrihistorie." },
+{ name:"Gol", fylke:"Viken", lat:60.7020, lon:8.9510,
+  fact:"Knutepunkt i Hallingdal langs riksveg 7." }
 ];
 
 function groupBy(arr, key){
@@ -542,14 +552,17 @@ function renderTilesInto(containerId, lat, lon, z, urlFn){
       img.src = urlFn(z, x, y);
       img.style.left = (c * TILE_SIZE) + "px";
       img.style.top = (r * TILE_SIZE) + "px";
+
+      // debug-hjelp: sjå i console om tiles feilar
+      img.onerror = () => console.warn("Tile failed:", img.src);
+
       tilesEl.appendChild(img);
     }
   }
 }
 
-// Render begge lag med SAME zoom + SAME transform
 function renderTilesPrecise(lat, lon, z){
-  const sub = pickSub();
+  const sub = pickSub(); // same sub for begge lag
   renderTilesInto("tilesBase", lat, lon, z, (zz,xx,yy) => TILE_URL_LABELS(sub, zz, xx, yy));
   renderTilesInto("tilesClip", lat, lon, z, (zz,xx,yy) => TILE_URL_NOLABELS(sub, zz, xx, yy));
 }
@@ -579,6 +592,7 @@ function buildOptionsForPlace(p){
   const opts = [p.name];
   const used = new Set(opts);
 
+  // Same fylke først
   const same = shuffle((byFylke[p.fylke] || []).filter(x => x.name !== p.name));
   for (const cand of same){
     if (opts.length >= 4) break;
@@ -588,6 +602,7 @@ function buildOptionsForPlace(p){
     }
   }
 
+  // Fyll på med næraste (uansett fylke)
   if (opts.length < 4){
     const sortedByNear = PLACES
       .filter(x => x.name !== p.name && !used.has(x.name))
@@ -661,7 +676,7 @@ function render(){
   locked = false;
   hideFact();
 
-  // før svar: labels inni sirkelen skal vere skjult
+  // før svar: skjul labels inni sirkelen
   revealCenterLabels(false);
 
   document.getElementById("next").disabled = true;
@@ -693,6 +708,7 @@ function pick(opt){
 
   if (opt === q.correct) score++;
 
+  // Vis alltid fact for riktig svar
   showFactForCorrect(q);
 
   // etter svar: labels inni sirkelen kjem fram
@@ -714,7 +730,7 @@ const zoomVal = document.getElementById("zoomVal");
 zoomEl.addEventListener("input", () => zoomVal.textContent = zoomEl.value);
 zoomEl.addEventListener("change", updateMapForCurrent);
 
-// mask size -> styrer både ring + clip-path via CSS-variabel
+// Sirkel-size -> styrer både ring + clip-path via CSS-variabel
 const maskEl = document.getElementById("maskSize");
 const maskVal = document.getElementById("maskVal");
 function applyMask(){
@@ -745,6 +761,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// Initial
 restart();
 </script>
 </body>
